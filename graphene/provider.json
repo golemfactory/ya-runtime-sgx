@@ -1,0 +1,8 @@
+[
+    {
+        "name": "exe-unit-wasi-sgx",
+        "supervisor-path": "exe-unit-wrapper.sh",
+        "runtime-path": "ya-runtime-wasi",
+        "description" : "HOHOHOHOHO WASI"
+    }
+]
