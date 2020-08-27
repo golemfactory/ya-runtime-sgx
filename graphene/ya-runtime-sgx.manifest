@@ -1,0 +1,41 @@
+loader.exec = file:/work/ya-runtime-sgx
+loader.preload = file:/graphene/Runtime/libsysdb.so
+loader.env.LD_LIBRARY_PATH = /lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu
+
+loader.env.RUST_BACKTRACE = 1
+loader.env.RUST_LOG = debug
+
+loader.debug_type = none
+loader.syscall_symbol = syscalldb
+loader.insecure__use_cmdline_argv = 1
+
+fs.mount.graphene_lib.type = chroot
+fs.mount.graphene_lib.path = /lib
+fs.mount.graphene_lib.uri = file:/graphene/Runtime
+
+fs.mount.host_lib.type = chroot
+fs.mount.host_lib.path = /lib/x86_64-linux-gnu
+fs.mount.host_lib.uri = file:/lib/x86_64-linux-gnu
+
+fs.mount.host_usr_lib.type = chroot
+fs.mount.host_usr_lib.path = /usr/lib/x86_64-linux-gnu
+fs.mount.host_usr_lib.uri = file:/usr/lib/x86_64-linux-gnu
+
+
+sgx.trusted_files.ld = file:/graphene/Runtime/ld-linux-x86-64.so.2
+sgx.trusted_files.libc = file:/graphene/Runtime/libc.so.6
+sgx.trusted_files.libdl = file:/graphene/Runtime/libdl.so.2
+sgx.trusted_files.libm = file:/graphene/Runtime/libm.so.6
+sgx.trusted_files.librt = file:/graphene/Runtime/librt.so.1
+sgx.trusted_files.libpthread = file:/graphene/Runtime/libpthread.so.0
+
+sgx.trusted_files.libgcc_s = file:/lib/x86_64-linux-gnu/libgcc_s.so.1
+
+sgx.allow_file_creation = 1
+
+sgx.allowed_files.in = file:file_in
+
+sgx.trusted_files.hello = file:hello
+sgx.trusted_children.hello = file:hello.sig
+
+sgx.thread_num = 16
