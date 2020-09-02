@@ -5,7 +5,7 @@ set -e
 default_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 run_in_nsjail() {
-    "$NSJAIL_PATH" -Mo -R /bin -R /lib -R /lib64 -R /usr -R /etc -R "$ENCLAVE_KEY_PATH" -R "$GRAPHENE_DIR:/graphene" -R /dev/urandom -B /var/run/aesmd/aesm.socket -B "`pwd`:/work" --cwd /work -E "PATH=$default_path" -- $@
+    "$NSJAIL_PATH" -Mo -R /bin -R /lib -R /lib64 -R /usr -R /etc -R /home -R "$ENCLAVE_KEY_PATH" -R "$GRAPHENE_DIR:/graphene" -R /dev/urandom -B /var/run/aesmd/aesm.socket -B "`pwd`:/work" --cwd /work -E "PATH=$default_path" -- $@
 }
 
 run() {
