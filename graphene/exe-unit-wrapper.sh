@@ -2,8 +2,10 @@
 
 set -e
 
+default_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
 run_in_nsjail() {
-    "$NSJAIL_PATH" -Mo -R /bin -R /lib -R /lib64 -R /usr -R /etc/passwd -R "$ENCLAVE_KEY_PATH" -R "$GRAPHENE_DIR:/graphene" -R /dev/urandom -B /var/run/aesmd/aesm.socket -B "`pwd`:/work" --cwd /work -- $@
+    "$NSJAIL_PATH" -Mo -R /bin -R /lib -R /lib64 -R /usr -R /etc/passwd -R "$ENCLAVE_KEY_PATH" -R "$GRAPHENE_DIR:/graphene" -R /dev/urandom -B /var/run/aesmd/aesm.socket -B "`pwd`:/work" --cwd /work -E "PATH=$default_path" -- $@
 }
 
 run() {
@@ -49,6 +51,7 @@ run() {
         -R "$YAGNA_DIR/hello.token:/work/hello.token" \
         -R "$YAGNA_DIR/hello.manifest.sgx:/work/hello.manifest.sgx" \
         --cwd /work \
+        -E "PATH=$default_path" \
         --rlimit_as hard \
         --rlimit_cpu hard \
         --rlimit_fsize hard \
