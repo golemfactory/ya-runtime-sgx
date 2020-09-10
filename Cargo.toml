@@ -2,3 +2,8 @@
 members=[
     'crates/trusted-voting-mgr'
 ]
+
+[profile.release]
+lto = true
+opt-level=3
+panic="abort"
