@@ -19,7 +19,7 @@ yagna/ya-runtime-sgx-wasi: ya-runtime-wasi.Dockerfile
 	tar c $^ | docker build -t $(TAG) -f $< -
 	$(SHELL) $(srcdir)extract.sh $(TAG) /usr/local/cargo/bin/ya-runtime-wasi $@
 
-graphene/.ready: graphene.Dockerfile sgx.h
+graphene/.ready: graphene.Dockerfile
 	tar c $^ | docker build -t $(TAG) --build-arg SGX_DRIVER=$(sgx_driver_2.6) -f $< -
 	$(SHELL) $(srcdir)extract.sh $(TAG) /leeroy/graphene/runtime.tar.gz graphene.tar.gz
 	mkdir -p graphene
