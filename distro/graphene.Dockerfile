@@ -78,10 +78,12 @@ ENV HOME /leeroy
 # Define default command.
 CMD ["bash"]
 
+ARG SGX_DRIVER
+
 RUN cd /opt/intel && \
 	git clone https://github.com/01org/linux-sgx-driver.git && \
         cd linux-sgx-driver && \
-        git checkout sgx_driver_1.9
+        git checkout $SGX_DRIVER
 
 ENV ISGX_DRIVER_PATH=/opt/intel/linux-sgx-driver
 
@@ -91,7 +93,7 @@ WORKDIR /leeroy/graphene
 
 RUN git submodule init && git submodule update 
 
-COPY sgx.h graphene/Pal/src/host/Linux-SGX/sgx-driver/
+RUN cd Pal/src/host/Linux-SGX/sgx-driver && ./link-intel-driver.py
 
 RUN make -j8 SGX=1 WERROR=1
 
