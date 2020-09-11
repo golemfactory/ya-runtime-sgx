@@ -58,7 +58,7 @@ run() {
         --rlimit_nproc hard \
         --rlimit_stack hard \
         -N \
-        -- /graphene/Runtime/pal-Linux-SGX /graphene/Runtime/libpal-Linux-SGX.so init sgx-exe-unit.manifest.sgx -b ./ya-runtime-sgx-wasi -c protected/cache -w . -a agreement.json ${rest}
+        -- /graphene/Runtime/pal-Linux-SGX /graphene/Runtime/libpal-Linux-SGX.so init sgx-exe-unit.manifest.sgx -b ./ya-runtime-sgx-wasi -c protected/cache -w . -a agreement.json --requestor-pub-key ${rest}
 }
 
 sign() {
@@ -83,7 +83,8 @@ main() {
             token
             ;;
         *)
-            run $@
+            local args=$@
+            run ${args/--requestor-pub-key/}
             ;;
     esac
 }
