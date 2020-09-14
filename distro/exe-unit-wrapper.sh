@@ -8,6 +8,11 @@ BASE_PATH=$(realpath $(dirname $0))
 NSJAIL_PATH=${NSJAIL_PATH:-"${BASE_PATH}/nsjail"}
 GRAPHENE_DIR=${GRAPHENE_DIR:-"${BASE_PATH}/graphene/"}
 YAGNA_DIR=${YAGNA_DIR:-"${BASE_PATH}/yagna/"}
+if [ ! -v ENCLAVE_KEY_PATH ]; then
+    if [ -e ./enclave-key.pem ]; then
+        ENCLAVE_KEY_PATH="${BASE_PATH}/enclave-key.pem"
+    fi
+fi
 
 run_in_nsjail() {
     "$NSJAIL_PATH" -Mo -R /bin -R /lib -R /lib64 -R /usr -R /etc -R /run ${ENCLAVE_KEY_PATH:+ -R "${ENCLAVE_KEY_PATH}"} -R "$GRAPHENE_DIR:/graphene" -R /dev/urandom -B /var/run/aesmd/aesm.socket -B "$YAGNA_DIR:/work" --cwd /work -E "PATH=$default_path" -- $@
@@ -63,6 +68,11 @@ run() {
 }
 
 sign() {
+    if [ ! -v ENCLAVE_KEY_PATH ]; then
+        echo "Enclave key not found!"
+        exit 1
+    fi
+
     run_in_nsjail /graphene/scripts/pal-sgx-sign --output ya-runtime-sgx-wasi.manifest.sgx --libpal /graphene/Runtime/libpal-Linux-SGX.so --key $ENCLAVE_KEY_PATH --manifest ya-runtime-sgx-wasi.manifest --exec ya-runtime-sgx-wasi
 
     run_in_nsjail /graphene/scripts/pal-sgx-sign --output sgx-exe-unit.manifest.sgx --libpal /graphene/Runtime/libpal-Linux-SGX.so --key $ENCLAVE_KEY_PATH --manifest sgx-exe-unit.manifest --exec sgx-exe-unit

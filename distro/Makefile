@@ -27,10 +27,15 @@ graphene/.ready: graphene.Dockerfile
 	$(RM) graphene.tar.gz
 	touch $@
 
-.PHONY=release
+.PHONY: release
 release: $(ALL_TARGETS)
+	./exe-unit-wrapper.sh sign
 	tar -vczf release.tar.gz --exclude graphene/.ready yagna nsjail graphene exe-unit-wrapper.sh
 
-.PHONY=clean
+.PHONY: gen_key
+gen_key:
+	openssl genrsa -3 -out enclave-key.pem 3072
+
+.PHONY: clean
 clean:
 	$(RM) -rf $(ALL_TARGETS) graphene
