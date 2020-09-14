@@ -1,7 +1,8 @@
 TAG=build-exe-unit
 SGX_DRIVER=sgx_driver_2.6
 
-all: yagna/sgx-exe-unit nsjail yagna/ya-runtime-sgx-wasi yagna/libgcc_s.so.1 graphene/.ready
+ALL_TARGETS=yagna/sgx-exe-unit nsjail yagna/ya-runtime-sgx-wasi yagna/libgcc_s.so.1 graphene/.ready
+all: $(ALL_TARGETS)
 
 yagna/sgx-exe-unit: exe-unit.Dockerfile
 	tar c $^ | docker build -t $(TAG) -f $< -
@@ -27,3 +28,10 @@ graphene/.ready: graphene.Dockerfile
 	$(RM) graphene.tar.gz
 	touch $@
 
+.PHONY=release
+release: $(ALL_TARGETS)
+	tar -vczf release.tar.gz --exclude graphene/.ready yagna nsjail graphene exe-unit-wrapper.sh
+
+.PHONY=clean
+clean:
+	$(RM) -rf $(ALL_TARGETS) graphene

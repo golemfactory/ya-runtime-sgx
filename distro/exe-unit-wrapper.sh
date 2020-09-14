@@ -4,9 +4,10 @@ set -e
 
 default_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-NSJAIL_PATH=${NSJAIL_PATH:-"/opt/yagna-wasi-sgx/nsjail"}
-GRAPHENE_DIR=${GRAPHENE_DIR:-"/opt/yagna-wasi-sgx/graphene/"}
-YAGNA_DIR=${YAGNA_DIR:-"/opt/yagna-wasi-sgx/yagna"}
+BASE_PATH=$(realpath $(dirname $0))
+NSJAIL_PATH=${NSJAIL_PATH:-"${BASE_PATH}/nsjail"}
+GRAPHENE_DIR=${GRAPHENE_DIR:-"${BASE_PATH}/graphene/"}
+YAGNA_DIR=${YAGNA_DIR:-"${BASE_PATH}/yagna/"}
 
 run_in_nsjail() {
     "$NSJAIL_PATH" -Mo -R /bin -R /lib -R /lib64 -R /usr -R /etc -R /run ${ENCLAVE_KEY_PATH:+ -R "${ENCLAVE_KEY_PATH}"} -R "$GRAPHENE_DIR:/graphene" -R /dev/urandom -B /var/run/aesmd/aesm.socket -B "$YAGNA_DIR:/work" --cwd /work -E "PATH=$default_path" -- $@
