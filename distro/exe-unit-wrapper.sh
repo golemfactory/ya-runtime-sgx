@@ -43,6 +43,7 @@ run() {
     mkdir "${work_dir}/protected"
 
     exec "$NSJAIL_PATH" -Q -Mo -R /lib64/ld-linux-x86-64.so.2 -R /lib -R /usr -R /dev/urandom -R /sys/devices/system/cpu/online -R /dev/isgx -R /dev/gsgx -R "$GRAPHENE_DIR:/graphene" \
+        -R /var/run/aesmd/aesm.socket \
         -B "${work_dir}:/work" \
         -R "$YAGNA_DIR/resolv.conf:/work/resolv.conf" \
         -R "${agreement_path}:/work/agreement.json" \
