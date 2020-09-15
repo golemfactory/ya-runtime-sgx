@@ -1,7 +1,7 @@
 TAG=build-exe-unit
 SGX_DRIVER=sgx_driver_2.6
 EXE_UNIT_VER=142baf46fa2dd30c74895a444560225838318765
-#EXE_UNIT_VER=exe-unit/sgx-poc
+WASI_VER=dcbdf9b581d01b26806c4697e793d9690e6550c3
 
 ALL_TARGETS=yagna/sgx-exe-unit nsjail yagna/ya-runtime-sgx-wasi yagna/libgcc_s.so.1 graphene/.ready
 all: $(ALL_TARGETS)
@@ -16,7 +16,7 @@ nsjail:
 	$(SHELL) $(srcdir)extract.sh $(TAG) /bin/nsjail $@
 
 yagna/ya-runtime-sgx-wasi: ya-runtime-wasi.Dockerfile
-	tar c $^ | docker build -t $(TAG)  -f $< -
+	tar c $^ | docker build -t $(TAG) --build-arg WASI_VERSION=$(WASI_VER) -f $< -
 	$(SHELL) $(srcdir)extract.sh $(TAG) /usr/local/cargo/bin/ya-runtime-wasi $@
 
 graphene/.ready: graphene.Dockerfile
