@@ -43,6 +43,7 @@ run() {
     mkdir "${work_dir}/protected"
 
     exec "$NSJAIL_PATH" -Q -Mo -R /lib64/ld-linux-x86-64.so.2 -R /lib -R /usr -R /dev/urandom -R /sys/devices/system/cpu/online -R /dev/isgx -R /dev/gsgx -R "$GRAPHENE_DIR:/graphene" \
+        -R /var/run/aesmd/aesm.socket \
         -B "${work_dir}:/work" \
         -R "$YAGNA_DIR/resolv.conf:/work/resolv.conf" \
         -R "${agreement_path}:/work/agreement.json" \
@@ -55,6 +56,7 @@ run() {
         -R "$YAGNA_DIR/ya-runtime-sgx-wasi.sig:/work/ya-runtime-sgx-wasi.sig" \
         -R "$YAGNA_DIR/ya-runtime-sgx-wasi.token:/work/ya-runtime-sgx-wasi.token" \
         -R "$YAGNA_DIR/libgcc_s.so.1:/work/libgcc_s.so.1" \
+        -R "$YAGNA_DIR/liblzma.so.5:/work/liblzma.so.5" \
         --cwd /work \
         -E "PATH=$default_path" \
         --rlimit_as hard \
