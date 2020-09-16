@@ -1,4 +1,4 @@
-use crate::idenity::Identity;
+use crate::voting::{Voting, unhex_ethaddr};
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -9,12 +9,12 @@ pub fn prv_path(f: &str) -> PathBuf {
 }
 
 mod eth;
-mod idenity;
+mod voting;
 
 #[derive(StructOpt)]
 #[allow(unused)]
 enum Args {
-    /// initalizes voteing log.
+    /// initalizes voting log.
     Init {
         /// Example: c73b910e58cb19341ec86111a054547d536d0448
         contract: String,
@@ -23,31 +23,27 @@ enum Args {
     Register {
         contract: String,
         voting_id: String,
-        mgr_addr: String,
-        sender: String,
-        /// keccak256 for register(contract, voting_id, mgr_addr, sender)
-        signature: Option<String>,
+        operator_addr: String,
+        /// sender signed keccak256 for register(contract, voting_id, operator_addr)
+        signature: String,
     },
     Start {
         contract: String,
         voting_id: String,
-        mgr_addr: String,
+        operator_addr: String,
     },
     Vote {
         contract: String,
         voting_id: String,
-        mgr_addr: String,
+        operator_addr: String,
         sender: String,
-        voters: u64,
         encrypted_vote: String,
     },
     Report {
         contract: String,
         voting_id: String,
-        mgr_addr: String,
+        operator_addr: String,
     },
-    // for debug
-    Debug {},
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -56,15 +52,44 @@ fn main() -> Result<(), Box<dyn Error>> {
             contract,
             voting_id,
         } => {
-            let mut contract_bytes: idenity::EthAddress = [0u8; 20];
-            hex::decode_to_slice(contract, &mut contract_bytes)?;
-            let id = idenity::Identity::new(contract_bytes, voting_id);
-            id.save()?;
-            println!("OK {}", id.address())
+            let contract_addr = unhex_ethaddr(contract.as_str())?;
+            let v = Voting::new(contract_addr, voting_id);
+            v.save()?;
+            let op_addr = hex::encode(&v.operator_address());
+            println!("INIT: OK {}", op_addr);
         }
-        Args::Debug {} => {
-            let id = Identity::from_storage()?;
-            println!("OK {} {} {}", id.address(), id.contract(), id.vote_id());
+        Args::Start {
+            contract,
+            voting_id,
+            operator_addr,
+        } => {
+            let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
+            v.start()?;
+            v.save()?;
+            println!("START: OK");
+        }
+        Args::Register {
+            contract,
+            voting_id,
+            operator_addr,
+            signature,
+        } => {
+            let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
+            v.register(signature.as_bytes())?;
+            v.save()?;
+            println!("REGISTER: OK");
+        }
+        Args::Vote {
+            contract,
+            voting_id,
+            operator_addr,
+            sender,
+            encrypted_vote,
+        } => {
+            let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
+            v.vote(&sender, &encrypted_vote)?;
+            v.save()?;
+            println!("VOTE: OK");
         }
         _ => unimplemented!(),
     }
