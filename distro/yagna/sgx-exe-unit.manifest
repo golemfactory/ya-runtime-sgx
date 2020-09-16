@@ -22,6 +22,10 @@ fs.mount.libgcc_s.type = chroot
 fs.mount.libgcc_s.path = /usr/lib/libgcc_s.so.1
 fs.mount.libgcc_s.uri = file:/work/libgcc_s.so.1
 
+fs.mount.liblzma.type = chroot
+fs.mount.liblzma.path = /usr/lib/liblzma.so.5
+fs.mount.liblzma.uri = file:/work/liblzma.so.5
+
 fs.mount.resolv.type = chroot
 fs.mount.resolv.path = /etc/resolv.conf
 fs.mount.resolv.uri = file:/work/resolv.conf
@@ -40,6 +44,7 @@ sgx.trusted_files.libnss_dns = file:/graphene/Runtime/libnss_dns.so.2
 sgx.trusted_files.libresolv = file:/graphene/Runtime/libresolv.so.2
 
 sgx.trusted_files.libgcc_s = file:/work/libgcc_s.so.1
+sgx.trusted_files.liblzma = file:/work/liblzma.so.5
 
 sgx.trusted_files.runtime_server_wasi = file:ya-runtime-sgx-wasi
 sgx.trusted_children.runtime_server_wasi = file:ya-runtime-sgx-wasi.sig

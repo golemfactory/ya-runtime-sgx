@@ -56,6 +56,7 @@ run() {
         -R "$YAGNA_DIR/ya-runtime-sgx-wasi.sig:/work/ya-runtime-sgx-wasi.sig" \
         -R "$YAGNA_DIR/ya-runtime-sgx-wasi.token:/work/ya-runtime-sgx-wasi.token" \
         -R "$YAGNA_DIR/libgcc_s.so.1:/work/libgcc_s.so.1" \
+        -R "$YAGNA_DIR/liblzma.so.5:/work/liblzma.so.5" \
         --cwd /work \
         -E "PATH=$default_path" \
         --rlimit_as hard \
