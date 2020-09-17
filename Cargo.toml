@@ -15,6 +15,7 @@ ya-runtime-api= { version = "0.1", git = "https://github.com/golemfactory/yagna.
 
 [workspace]
 members=[
+    'crates/trusted-voting-client',
     'crates/trusted-voting-mgr',
     'crates/trusted-voting-operator'
 ]
