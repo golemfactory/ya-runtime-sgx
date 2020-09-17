@@ -1,0 +1,27 @@
+[package]
+name = "trusted-voting-operator"
+version = "0.1.0"
+authors = ["Golem <contact@golem.network>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix="0.10.0"
+actix-web="3.0"
+actix-rt="1.1"
+chrono={ version = "0.4.15", features=["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0.32"
+futures = "0.3"
+env_logger="0.7.1"
+log="0.4"
+structopt="0.3.17"
+dotenv="0.15.0"
+tokio = { version = "0.2", features=["time"]}
+hex="0.4.2"
+
+#yarapi = { git="https://github.com/golemfactory/yarapi.git", branch="release/sgx-poc" }
+yarapi = { path = "/home/reqc/workspace/ya/yarapi" }
+ya-client= { git = "https://github.com/golemfactory/ya-client.git", rev = "9876f116107de0b3521352e97ef766dceb10c4ef" }
