@@ -119,6 +119,7 @@ impl Handler<Clean> for SessionMgr {
                     .map(|a| a.send(super::Delete)),
             )
             .await;
-        }.boxed_local()
+        }
+        .boxed_local()
     }
 }

@@ -62,6 +62,16 @@ pub struct SessionInfo {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionDetails {
+    pub contract: String,
+    pub voting_id: String,
+    pub manager_address: String,
+    pub state: State,
+    pub creditioals: ya_client::model::activity::Credentials,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub enum State {
     #[serde(rename_all = "camelCase")]
     Init {
@@ -221,6 +231,26 @@ impl Handler<Get> for Session {
 
     fn handle(&mut self, _msg: Get, _ctx: &mut Self::Context) -> Self::Result {
         MessageResult(self.info.clone())
+    }
+}
+
+pub struct GetDetails;
+
+impl Message for GetDetails {
+    type Result = SessionDetails;
+}
+
+impl Handler<GetDetails> for Session {
+    type Result = MessageResult<GetDetails>;
+
+    fn handle(&mut self, _msg: GetDetails, _ctx: &mut Self::Context) -> Self::Result {
+        MessageResult(SessionDetails {
+            contract: self.info.contract.clone(),
+            voting_id: self.info.voting_id.clone(),
+            manager_address: self.info.manager_address.clone(),
+            state: self.info.state.clone(),
+            creditioals: self.activity.credentials().unwrap(),
+        })
     }
 }
 
@@ -385,15 +415,27 @@ pub async fn register_voter(
         .map_err(actix_web::error::ErrorInternalServerError)
 }
 
-pub async fn operator_start(manager_addr: String) -> actix_web::Result<SessionInfo> {
-    let voting_session = manager::SessionMgr::from_registry()
+async fn get_session_actor(manager_addr: String) -> actix_web::Result<Addr<Session>> {
+    Ok(manager::SessionMgr::from_registry()
         .send(manager::Get(manager_addr.clone()))
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?
         .ok_or_else(|| {
             actix_web::error::ErrorNotFound(format!("voting manager {} not found", manager_addr))
-        })?;
-    voting_session
+        })?)
+}
+
+pub async fn get_session_details(manager_addr: String) -> actix_web::Result<SessionDetails> {
+    get_session_actor(manager_addr)
+        .await?
+        .send(GetDetails)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)
+}
+
+pub async fn operator_start(manager_addr: String) -> actix_web::Result<SessionInfo> {
+    get_session_actor(manager_addr)
+        .await?
         .send(Start)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?
@@ -405,14 +447,8 @@ pub async fn send_vote(
     sender: String,
     vote: Vec<u8>,
 ) -> actix_web::Result<Vec<u8>> {
-    let voting_session = manager::SessionMgr::from_registry()
-        .send(manager::Get(manager_addr.clone()))
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?
-        .ok_or_else(|| {
-            actix_web::error::ErrorNotFound(format!("voting manager {} not found", manager_addr))
-        })?;
-    voting_session
+    get_session_actor(manager_addr)
+        .await?
         .send(NewVote(sender, vote))
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?
@@ -421,5 +457,8 @@ pub async fn send_vote(
 
 pub async fn delete_all_sessions() {
     log::warn!("Admin send command delete_all_sessions");
-    let _ = manager::SessionMgr::from_registry().send(manager::Clean).timeout(Duration::from_secs(30)).await;
+    let _ = manager::SessionMgr::from_registry()
+        .send(manager::Clean)
+        .timeout(Duration::from_secs(30))
+        .await;
 }

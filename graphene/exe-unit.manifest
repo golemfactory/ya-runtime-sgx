@@ -42,3 +42,9 @@ sgx.trusted_files.runtime_server = file:ya-runtime-sgx
 sgx.trusted_children.runtime_server = file:ya-runtime-sgx.sig
 
 sgx.thread_num = 8
+
+sgx.remote_attestation=1
+sgx.ra_client_linkable=1
+sgx.ra_client_spid=655AFA33FAA5B9CC5E9E241FA229B994
+loader.env.IAS_SERVICE_ADDRESS = 0x9adc25a2bc8f1c698cc3cc34bd7c86b8954898c9
+

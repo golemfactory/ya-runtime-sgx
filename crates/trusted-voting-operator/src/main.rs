@@ -1,5 +1,7 @@
 use crate::session::SessionInfo;
-use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{
+    delete, get, post, put, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 
 use std::sync::Arc;
 
@@ -55,6 +57,14 @@ async fn sessions() -> actix_web::Result<web::Json<Vec<SessionInfo>>> {
     Ok(web::Json(sessions))
 }
 
+#[get("/sessions/{mgrAddr}")]
+async fn fetch_session(msg_addr: web::Path<(String,)>) -> impl Responder {
+    let session = session::get_session_details(msg_addr.into_inner().0)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok::<_, actix_web::Error>(web::Json(session))
+}
+
 #[delete("/sessions/{mgrAddr}")]
 async fn delete_sessoion(msg_addr: web::Path<(String,)>) -> impl Responder {
     session::delete_manager(msg_addr.into_inner().0).await?;
@@ -88,7 +98,6 @@ async fn admin_shutdown() -> impl Responder {
     session::delete_all_sessions().await;
     web::Json(())
 }
-
 
 #[derive(StructOpt)]
 struct Args {
@@ -129,12 +138,14 @@ async fn main() -> std::io::Result<()> {
             .service(version)
             .service(nodes)
             .service(sessions)
+            .service(fetch_session)
             .service(new_session)
             .service(delete_sessoion)
             .service(register_voter)
             .service(send_vote)
             .service(session_start)
             .service(admin_shutdown)
+            .service(actix_files::Files::new("/ui", "ui"))
     })
     .bind("127.0.0.1:8080")?
     .run()

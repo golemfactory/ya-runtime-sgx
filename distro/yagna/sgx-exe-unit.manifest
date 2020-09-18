@@ -62,4 +62,6 @@ sgx.thread_num = 6
 
 sgx.remote_attestation=1
 sgx.ra_client_linkable=0
-sgx.ra_client_spid=TODO
+sgx.ra_client_spid=053871E87108762F687690457EEAE5AF
+loader.env.IAS_SERVICE_ADDRESS = 0x3c3fcc43b9d03008187742a9c27672329e0b4294
+

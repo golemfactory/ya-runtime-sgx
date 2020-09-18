@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SGX Voting</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+          integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <script src="require1k.min.js"></script>
+    <style>
+        .pad-top {
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+<script type="module">
+    import {html, render} from 'https://unpkg.com/lit-html?module';
+    import {repeat} from 'https://unpkg.com/lit-html/directives/repeat.js?module';
+    import {live} from 'https://unpkg.com/lit-html/directives/live.js?module';
+
+    const CONTRACT_ADDR = "aea5db67524e02a263b9339fe6667d6b577f3d4c";
+
+    function update(data, action) {
+        if (action) {
+            Promise.resolve(action(data)).then(() => render(template(data), document.body))
+        } else {
+            render(template(data), document.body);
+        }
+        return false;
+    }
+
+    const getJson = async (url) => await (await fetch(url)).json();
+
+    const deleteVotingSession = async (address) => {
+        const request = new Request(`/sessions/${address}`, {method: 'DELETE'})
+        const response = await fetch(request);
+        if (response.status != 200) {
+            log.error(await response.text());
+        }
+
+    }
+
+    const sessionsTab = (sessions) => html`
+        <div class="row">
+            <div class="col">
+            <table class="table table-bordered">
+                <thead class="thead-dark">
+                <tr>
+                    <th>Adress</th>
+                    <th>Contract</th>
+                    <th>Voting</th>
+                    <th>State</th>
+                </tr>
+                </thead>
+                ${repeat(sessions, (session) => html`<tr>
+                    <td>0x${session.managerAddress}</td>
+                    <td>0x${session.contract}</td>
+                    <td>${session.votingId}</td>
+                    <td>
+                        <div class="panel">
+                            <div class="panel-body">
+                            <pre><code>${JSON.stringify(session.state, null, 2)}</code></pre>
+                            </div>
+                            <div class="panel-footer">
+                               <button class="btn btn-primary btn-sm">Register</button>
+                               <button class="btn btn-primary btn-sm">Vote</button>
+                               <button class="btn btn-danger btn-sm" @click=${async () => await deleteVotingSession(session.managerAddress)}>Delete</button>
+                               <button class="btn btn-danger btn-sm">Start</button>
+                            </div>
+                        </div>
+
+                    </td>
+                </tr>`)}
+            </table>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <a class="btn btn-primary" href="#">Create</a>
+            </div>
+        </div>
+    `;
+
+    const updateSessions = async (data) => {
+        const detectProvider = await import('https://unpkg.com/@metamask/detect-provider@1.1.0/dist/detect-provider.min.js?module');
+        window.detectProvider = detectProvider;
+
+        data.sessions = await getJson("/sessions");
+    };
+
+    const updateNodes = async (data) => {
+        data.nodes = await getJson("/nodes");
+    };
+
+    const template = (data) => {
+
+        const isActive = (tabName) => {
+            return (tabName === data.selected) ? "active" : ""
+        }
+
+        const navItem = (itemId, itemTitle, action) => html`
+            <li class="nav-item ${isActive(itemId)}">
+                <a class="nav-link"
+                    href="#" @click=${() => update({...data,selected: itemId}, action)}>${itemTitle}
+                </a>
+           </li>`;
+
+        const navbar = html`
+            <nav class="navbar navbar-expand-lg navbar-light bg-light">
+                <a class="navbar-brand" href="#">Voting</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                    <ul class="navbar-nav mr-auto">
+                        ${navItem('nodes', 'Nodes', updateNodes)}
+                        ${navItem('sessions', 'Sessions', updateSessions)}
+                    </ul>
+                </div>
+            </nav>`;
+
+        const nodesTab = (nodes) => html`
+            <table class="table table-bordered">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>Node Id</th>
+                        <th>Subnet</th>
+                    </tr>
+                </thead>
+                ${repeat(nodes, (node) => html`<tr>
+                    <td>${node.name}</td>
+                    <td>${node.nodeId}</td>
+                    <td>${node.subnet}</td>
+                 </tr>`)}
+            </table>
+        `;
+
+        return html`
+            ${navbar}
+            <div class="container-fluid pad-top">
+            ${data.selected === 'nodes' ? nodesTab(data.nodes) : ''}
+            ${data.selected === 'sessions' ? sessionsTab(data.sessions) : ''}
+            </div>`;
+    };
+
+    update({selected: "sessions", nodes: []}, updateSessions);
+</script>
+</body>

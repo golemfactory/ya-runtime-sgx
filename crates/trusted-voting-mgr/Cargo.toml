@@ -8,11 +8,15 @@ edition = "2018"
 
 [dependencies]
 libsecp256k1 = "0.3.5"
+#secp256k1 = "*"
 structopt="0.3"
 rand_core="0.5.1"
 wasi-rng = "0.1.3"
-tiny-keccak = { version = "2.0", features = ["keccak"] }
+tiny-keccak = { version = "2.0", features = ["keccak", "sha3"] }
 hex="0.4.2"
+
+[dev-dependencies]
+base64="0.12.3"
 
 [package.metadata.ya-wasi-pkg]
 runtime="wasi"

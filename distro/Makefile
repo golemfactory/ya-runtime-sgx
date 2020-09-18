@@ -1,6 +1,6 @@
 TAG=build-exe-unit
 SGX_DRIVER=sgx_driver_2.6
-EXE_UNIT_VER=142baf46fa2dd30c74895a444560225838318765
+EXE_UNIT_VER=bede466067c67d0400ad441f298be6978ed28fb4
 WASI_VER=dcbdf9b581d01b26806c4697e793d9690e6550c3
 
 ALL_TARGETS=yagna/sgx-exe-unit nsjail yagna/ya-runtime-sgx-wasi yagna/libgcc_s.so.1 yagna/liblzma.so.5 graphene/.ready
@@ -28,10 +28,12 @@ graphene/.ready: graphene.Dockerfile
 	$(RM) graphene.tar.gz
 	touch $@
 
-.PHONY: release
-release: $(ALL_TARGETS)
+ya-runtime-sgx.tar.gz: $(ALL_TARGETS) ya-runtime-sgx.json exe-unit-wrapper.sh
 	./exe-unit-wrapper.sh sign
-	tar -vczf release.tar.gz --exclude graphene/.ready yagna nsjail graphene exe-unit-wrapper.sh
+	tar -vczf $@ --exclude graphene/.ready ya-runtime-sgx.json yagna nsjail graphene exe-unit-wrapper.sh
+
+.PHONY: release
+release: ya-runtime-sgx.tar.gz
 
 .PHONY: gen_key
 gen_key:

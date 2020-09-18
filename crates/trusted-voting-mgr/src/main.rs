@@ -4,11 +4,11 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-
 pub fn prv_path(f: &str) -> PathBuf {
     AsRef::<Path>::as_ref("/private").join(f)
 }
 
+mod eth;
 mod idenity;
 
 #[derive(StructOpt)]

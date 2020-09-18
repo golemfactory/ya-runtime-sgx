@@ -9,12 +9,8 @@ use std::{
     sync::Arc,
 };
 use structopt::StructOpt;
-use tokio::{
-    io::AsyncWriteExt,
-    spawn,
-};
+use tokio::{io::AsyncWriteExt, spawn};
 use ya_runtime_api::{deploy, server};
-
 
 #[derive(StructOpt)]
 enum Commands {
@@ -57,9 +53,7 @@ fn child_watcher<'a, E: server::RuntimeEvent + Send + Sync + 'static>(
                 }
             }
             let (child, st) = match found {
-                Some((i, st)) => {
-                    (children.remove(i), st)
-                }
+                Some((i, st)) => (children.remove(i), st),
                 None => {
                     /* Drop the lock before sleeping. */
                     drop(children);
@@ -144,12 +138,15 @@ impl server::RuntimeService for Runtime {
             if run.args.len() > 1 {
                 command.args(&run.args[1..]);
             }
-            let child = command.stdin(std::process::Stdio::null())
+            let child = command
+                .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .current_dir(&self.work_dir)
                 .spawn()
-                .map_err(|e| server::ErrorResponse::msg(format!("running process failed: {}", e)))?;
+                .map_err(|e| {
+                    server::ErrorResponse::msg(format!("running process failed: {}", e))
+                })?;
             let pid = child.id();
             let mut children = self.children.lock().await;
             children.push(child);
@@ -162,9 +159,20 @@ impl server::RuntimeService for Runtime {
         log::debug!("kill: {:?}", kill);
         async move {
             let mut children = self.children.lock().await;
-            match children.iter_mut().find(|child| child.id() as u64 == kill.pid) {
-                Some(child) => child.kill().map_err(|e| server::ErrorResponse::msg(format!("killing process (pid: {}) failed: {}", kill.pid, e))),
-                None => Err(server::ErrorResponse::msg(format!("no such process (pid: {}) to kill", kill.pid))),
+            match children
+                .iter_mut()
+                .find(|child| child.id() as u64 == kill.pid)
+            {
+                Some(child) => child.kill().map_err(|e| {
+                    server::ErrorResponse::msg(format!(
+                        "killing process (pid: {}) failed: {}",
+                        kill.pid, e
+                    ))
+                }),
+                None => Err(server::ErrorResponse::msg(format!(
+                    "no such process (pid: {}) to kill",
+                    kill.pid
+                ))),
             }
         }
         .boxed_local()
@@ -183,7 +191,10 @@ impl server::RuntimeService for Runtime {
             // TODO: kill child_watcher, perhaps giving it some time to catch up with all the children
             // being killed
             if fails.len() > 0 {
-                Err(server::ErrorResponse::msg(format!("failed to kill children: {:?}", fails)))
+                Err(server::ErrorResponse::msg(format!(
+                    "failed to kill children: {:?}",
+                    fails
+                )))
             } else {
                 Ok(())
             }
@@ -197,10 +208,12 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     let cmdargs = CmdArgs::from_args();
     match cmdargs.command {
-        Commands::Deploy { } =>  deploy(&cmdargs.task_package).await?,
-        Commands::Start { } => {
+        Commands::Deploy {} => deploy(&cmdargs.task_package).await?,
+        Commands::Start {} => {
             server::run_async(|e| async {
-                Runtime::new(cmdargs.workdir.clone(), e).await.expect("failed to start runtime")
+                Runtime::new(cmdargs.workdir.clone(), e)
+                    .await
+                    .expect("failed to start runtime")
             })
             .await
         }
