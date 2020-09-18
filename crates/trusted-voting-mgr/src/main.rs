@@ -12,7 +12,6 @@ mod eth;
 mod voting;
 
 #[derive(StructOpt)]
-#[allow(unused)]
 enum Args {
     /// initalizes voting log.
     Init {
@@ -20,6 +19,7 @@ enum Args {
         contract: String,
         voting_id: String,
     },
+    /// registers a voter
     Register {
         contract: String,
         voting_id: String,
@@ -27,11 +27,13 @@ enum Args {
         /// sender signed keccak256 for register(contract, voting_id, operator_addr)
         signature: String,
     },
+    /// starts the voting
     Start {
         contract: String,
         voting_id: String,
         operator_addr: String,
     },
+    /// adds an encrypted vote
     Vote {
         contract: String,
         voting_id: String,
@@ -39,6 +41,7 @@ enum Args {
         sender: String,
         encrypted_vote: String,
     },
+    /// prints voting summary
     Report {
         contract: String,
         voting_id: String,
@@ -91,7 +94,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             v.save()?;
             println!("VOTE: OK");
         }
-        _ => unimplemented!(),
+        Args::Report {
+            contract,
+            voting_id,
+            operator_addr,
+        } => {
+            let v = Voting::load(&contract, &voting_id, &operator_addr)?;
+            let results = v.report()?;
+            println!("Results:");
+            for (option, votes) in results.iter() {
+                println!("{}: {}", option, votes);
+            }
+            println!("REPORT: OK");
+        }
     }
     Ok(())
 }

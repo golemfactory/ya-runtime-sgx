@@ -1,6 +1,6 @@
 use secp256k1::{PublicKey, SecretKey};
 use std::{
-    collections::HashMap,
+    collections::{hash_map, HashMap},
     convert::TryInto,
     error::Error,
     fmt, fs,
@@ -11,8 +11,10 @@ use tiny_keccak::{Hasher, Keccak};
 #[derive(Debug)]
 pub enum VotingError {
     AlreadyStarted,
+    AlreadyVoted,
     InvalidAddress,
     InvalidId,
+    NotFinished,
     NotStarted,
 }
 
@@ -31,7 +33,8 @@ pub struct Voting {
     contract: EthAddress,
     voting_id: String,
     started: bool,
-    voters: HashMap<EthAddress, PublicKey>,
+    voters: HashMap<EthAddress, (PublicKey, bool)>,
+    results: HashMap<u32, u32>,
 }
 
 fn pub_key_to_ethaddr(pub_key: &PublicKey) -> EthAddress {
@@ -67,6 +70,7 @@ impl Voting {
             voting_id,
             started: false,
             voters: HashMap::new(),
+            results: HashMap::new(),
         }
     }
 
@@ -95,8 +99,16 @@ impl Voting {
 
         let voters_len = (self.voters.len() as u32).to_le_bytes();
         f.write_all(voters_len.as_ref())?;
-        for (_, v) in self.voters.iter() {
+        for (_, (v, b)) in self.voters.iter() {
             f.write_all(&v.serialize_compressed())?;
+            f.write_all((*b as u8).to_le_bytes().as_ref())?;
+        }
+
+        let results_len = (self.results.len() as u32).to_le_bytes();
+        f.write_all(results_len.as_ref())?;
+        for (k, v) in self.results.iter() {
+            f.write_all(k.to_le_bytes().as_ref())?;
+            f.write_all(v.to_le_bytes().as_ref())?;
         }
 
         Ok(())
@@ -134,13 +146,32 @@ impl Voting {
         let mut voters_len = [0u8; 4];
         f.read_exact(voters_len.as_mut())?;
         let voters_len = u32::from_le_bytes(voters_len);
-        let mut voters = HashMap::new();
+        let mut voters = HashMap::with_capacity(voters_len as usize);
         for _ in 0..voters_len {
             let mut voter = [0u8; 33];
             f.read_exact(voter.as_mut())?;
             let voter = PublicKey::parse_compressed(&voter)?;
             let voter_addr = pub_key_to_ethaddr(&voter);
-            voters.insert(voter_addr, voter);
+
+            let mut voted = [0u8];
+            f.read_exact(voted.as_mut())?;
+            let voted = u8::from_le_bytes(voted);
+
+            voters.insert(voter_addr, (voter, voted != 0));
+        }
+
+        let mut results_len = [0u8; 4];
+        f.read_exact(results_len.as_mut())?;
+        let results_len = u32::from_le_bytes(results_len);
+        let mut results = HashMap::with_capacity(results_len as usize);
+        for _ in 0..results_len {
+            let mut k = [0u8; 4];
+            let mut v = [0u8; 4];
+            f.read_exact(k.as_mut())?;
+            f.read_exact(v.as_mut())?;
+            let k = u32::from_le_bytes(k);
+            let v = u32::from_le_bytes(v);
+            results.insert(k, v);
         }
 
         let requested_contract = unhex_ethaddr(requested_contract)?;
@@ -161,6 +192,7 @@ impl Voting {
             voting_id,
             started,
             voters,
+            results,
         })
     }
 }
@@ -195,7 +227,7 @@ impl Voting {
         let voter_key = secp256k1::recover(&msg, &signature, &recovery_id)?;
         let voter_addr = pub_key_to_ethaddr(&voter_key);
 
-        self.voters.insert(voter_addr, voter_key);
+        self.voters.insert(voter_addr, (voter_key, false));
 
         Ok(())
     }
@@ -207,19 +239,51 @@ impl Voting {
 
         let sender_addr = unhex_ethaddr(sender)?;
 
-        let sender_key = self
+        let (sender_key, voted_already) = self
             .voters
             .get(&sender_addr)
             .ok_or(VotingError::InvalidAddress)?;
+        if *voted_already {
+            return Err(VotingError::AlreadyVoted.into());
+        }
 
         let vote = hex::decode(encrypted_vote)?;
 
-        println!(
-            "Voter: {}\nVote: {:?}",
-            hex::encode(sender_key.serialize().as_ref()),
-            vote
-        );
+        // TODO decrypt vote
+
+        let vote = u32::from_le_bytes(vote[..4].try_into()?);
+
+        *self.results.entry(vote).or_insert(0) += 1;
+
+        match self.voters.entry(sender_addr) {
+            hash_map::Entry::Occupied(mut e) => {
+                e.get_mut().1 = true;
+            }
+            hash_map::Entry::Vacant(_) => {
+                panic!("impossible");
+            }
+        }
 
         Ok(())
+    }
+
+    pub fn report(&self) -> Result<Vec<(u32, u32)>, Box<dyn Error>> {
+        if !self.started {
+            return Err(VotingError::NotStarted.into());
+        }
+
+        for (_, (_, voted)) in self.voters.iter() {
+            if !voted {
+                return Err(VotingError::NotFinished.into());
+            }
+        }
+
+        let mut results = Vec::with_capacity(self.results.len());
+
+        for (k, v) in self.results.iter() {
+            results.push((*k, *v));
+        }
+
+        Ok(results)
     }
 }
