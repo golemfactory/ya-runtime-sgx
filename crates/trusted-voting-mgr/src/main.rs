@@ -1,4 +1,4 @@
-use crate::voting::{Voting, unhex_ethaddr};
+use crate::voting::{unhex_ethaddr, Voting};
 
 use std::error::Error;
 use std::path::{Path, PathBuf};

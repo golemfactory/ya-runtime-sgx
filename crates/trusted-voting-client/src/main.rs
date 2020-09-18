@@ -20,14 +20,11 @@ enum Args {
         voting_id: String,
         operator_addr: String,
     },
-    EncryptVote {
-    },
+    EncryptVote {},
 }
 
 fn read_key() -> Result<SecretKey, Box<dyn Error>> {
-    let mut f = fs::OpenOptions::new()
-        .read(true)
-        .open(KEY_PATH)?;
+    let mut f = fs::OpenOptions::new().read(true).open(KEY_PATH)?;
     let mut key_bytes = [0u8; 32];
     f.read_exact(key_bytes.as_mut())?;
     Ok(SecretKey::parse(&key_bytes)?)
@@ -85,8 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             println!("OK {}", sig_packed);
         }
-        Args::EncryptVote {
-        } => {
+        Args::EncryptVote {} => {
             let key = read_key()?;
             let pk = secp256k1::PublicKey::from_secret_key(&key);
             println!("ADDR: {}", hex::encode(pub_key_to_ethaddr(&pk)));

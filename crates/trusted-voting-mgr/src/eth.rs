@@ -8,7 +8,6 @@ pub trait EthAddress {
 }
 
 impl EthHash {
-
     pub fn personal_message(message: impl AsRef<[u8]>) -> EthHash {
         let message = message.as_ref();
         let msg_size = message.len().to_string();

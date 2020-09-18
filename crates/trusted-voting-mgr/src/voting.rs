@@ -3,8 +3,7 @@ use std::{
     collections::HashMap,
     convert::TryInto,
     error::Error,
-    fmt,
-    fs,
+    fmt, fs,
     io::{self, BufReader, Read, Write},
 };
 use tiny_keccak::{Hasher, Keccak};
@@ -208,11 +207,18 @@ impl Voting {
 
         let sender_addr = unhex_ethaddr(sender)?;
 
-        let sender_key = self.voters.get(&sender_addr).ok_or(VotingError::InvalidAddress)?;
+        let sender_key = self
+            .voters
+            .get(&sender_addr)
+            .ok_or(VotingError::InvalidAddress)?;
 
         let vote = hex::decode(encrypted_vote)?;
 
-        println!("Voter: {}\nVote: {:?}", hex::encode(sender_key.serialize().as_ref()), vote);
+        println!(
+            "Voter: {}\nVote: {:?}",
+            hex::encode(sender_key.serialize().as_ref()),
+            vote
+        );
 
         Ok(())
     }
