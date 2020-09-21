@@ -1,5 +1,14 @@
 use crate::eth::{EthAddress, EthHash, RecoverableSignature, ToEthAddress};
+use aes_gcm::{
+    Aes256Gcm,
+    aead::{
+        Aead,
+        NewAead,
+        generic_array::GenericArray,
+    },
+};
 use secp256k1::{PublicKey, SecretKey};
+use sha2::Sha256;
 use std::{
     collections::{hash_map, HashMap},
     convert::TryInto,
@@ -12,6 +21,7 @@ use std::{
 pub enum VotingError {
     AlreadyStarted,
     AlreadyVoted,
+    DecryptionError,
     InvalidAddress,
     InvalidId,
     NotFinished,
@@ -53,6 +63,10 @@ impl Voting {
 
     pub fn operator_address(&self) -> EthAddress {
         self.secret.to_eth_address()
+    }
+
+    pub fn operator_pubkey(&self) -> [u8; 65] {
+        PublicKey::from_secret_key(&self.secret).serialize()
     }
 
     pub fn save(&self) -> io::Result<()> {
@@ -235,7 +249,7 @@ impl Voting {
 
         let sender_addr = EthAddress::from_hex(sender)?;
 
-        let (_session_key, voted_already) = self
+        let (session_key, voted_already) = self
             .voters
             .get(&sender_addr)
             .ok_or(VotingError::InvalidAddress)?;
@@ -244,10 +258,23 @@ impl Voting {
         }
 
         let vote = hex::decode(encrypted_vote)?;
+        if vote.len() <= 12 {
+            return Err(VotingError::DecryptionError.into());
+        }
 
-        // TODO decrypt vote
+        let shared_sec = secp256k1::SharedSecret::<Sha256>::new(session_key, &self.secret)?;
+        let shared_key = GenericArray::from_slice(shared_sec.as_ref());
+        let cipher = Aes256Gcm::new(&shared_key);
 
-        let vote = u32::from_le_bytes(vote[..4].try_into()?);
+        let nonce = GenericArray::from_slice(&vote[..12]);
+        let enc_vote = &vote[12..];
+
+        let vote = cipher.decrypt(nonce, enc_vote).map_err(|_| VotingError::DecryptionError)?;
+        if vote.len() != 4 {
+            return Err(VotingError::DecryptionError.into());
+        }
+
+        let vote = u32::from_le_bytes(vote.as_slice().try_into()?);
 
         *self.results.entry(vote).or_insert(0) += 1;
 

@@ -62,7 +62,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             let v = Voting::new(contract_addr, voting_id);
             v.save()?;
             let op_addr = hex::encode(&v.operator_address());
-            println!("OK {}", op_addr);
+            let op_pkey = hex::encode(v.operator_pubkey().as_ref());
+            println!("OK {} {}", op_addr, op_pkey);
         }
         Args::Start {
             contract,
