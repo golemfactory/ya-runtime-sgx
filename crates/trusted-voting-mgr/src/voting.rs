@@ -1,3 +1,4 @@
+use crate::eth::{EthAddress, EthHash, RecoverableSignature, ToEthAddress};
 use secp256k1::{PublicKey, SecretKey};
 use std::{
     collections::{hash_map, HashMap},
@@ -6,7 +7,6 @@ use std::{
     fmt, fs,
     io::{self, BufReader, Read, Write},
 };
-use tiny_keccak::{Hasher, Keccak};
 
 #[derive(Debug)]
 pub enum VotingError {
@@ -26,8 +26,6 @@ impl fmt::Display for VotingError {
 
 impl Error for VotingError {}
 
-pub type EthAddress = [u8; 20];
-
 pub struct Voting {
     secret: SecretKey,
     contract: EthAddress,
@@ -35,27 +33,6 @@ pub struct Voting {
     started: bool,
     voters: HashMap<EthAddress, (PublicKey, bool)>,
     results: HashMap<u32, u32>,
-}
-
-fn pub_key_to_ethaddr(pub_key: &PublicKey) -> EthAddress {
-    let bytes = pub_key.serialize();
-    let mut keccak = Keccak::v256();
-    let mut result = [0u8; 32];
-    // This is uncompressed form; we need raw key bytes, thus skipping the first byte.
-    keccak.update(&bytes[1..]);
-    keccak.finalize(&mut result);
-    result[12..].try_into().unwrap()
-}
-
-fn priv_key_to_ethaddr(key: &SecretKey) -> EthAddress {
-    let pub_key = PublicKey::from_secret_key(key);
-    pub_key_to_ethaddr(&pub_key)
-}
-
-pub fn unhex_ethaddr(addr: &str) -> Result<EthAddress, hex::FromHexError> {
-    let mut addr_bytes: EthAddress = [0u8; 20];
-    hex::decode_to_slice(addr, &mut addr_bytes)?;
-    Ok(addr_bytes)
 }
 
 impl Voting {
@@ -75,7 +52,7 @@ impl Voting {
     }
 
     pub fn operator_address(&self) -> EthAddress {
-        priv_key_to_ethaddr(&self.secret)
+        self.secret.to_eth_address()
     }
 
     pub fn save(&self) -> io::Result<()> {
@@ -151,7 +128,7 @@ impl Voting {
             let mut voter = [0u8; 33];
             f.read_exact(voter.as_mut())?;
             let voter = PublicKey::parse_compressed(&voter)?;
-            let voter_addr = pub_key_to_ethaddr(&voter);
+            let voter_addr = voter.to_eth_address();
 
             let mut voted = [0u8];
             f.read_exact(voted.as_mut())?;
@@ -174,15 +151,17 @@ impl Voting {
             results.insert(k, v);
         }
 
-        let requested_contract = unhex_ethaddr(requested_contract)?;
+        let contract = EthAddress::new(contract);
+
+        let requested_contract = EthAddress::from_hex(requested_contract)?;
         if requested_contract != contract {
             return Err(VotingError::InvalidAddress.into());
         }
         if *requested_voting_id != voting_id {
             return Err(VotingError::InvalidId.into());
         }
-        let operator_addr = unhex_ethaddr(operator_addr)?;
-        if operator_addr != priv_key_to_ethaddr(&secret) {
+        let operator_addr = EthAddress::from_hex(operator_addr)?;
+        if operator_addr != secret.to_eth_address() {
             return Err(VotingError::InvalidAddress.into());
         }
 
@@ -198,48 +177,65 @@ impl Voting {
 }
 
 impl Voting {
-    pub fn start(&mut self) -> Result<(), VotingError> {
+    pub fn start(&mut self) -> Result<String, VotingError> {
         if self.started {
             return Err(VotingError::AlreadyStarted);
         }
         self.started = true;
-        Ok(())
+        let voters = self
+            .voters
+            .keys()
+            .map(|addr| addr.to_hex_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        Ok(voters)
     }
 
-    pub fn register(&mut self, signature_hex: &[u8]) -> Result<(), Box<dyn Error>> {
+    pub fn register(
+        &mut self,
+        sender: &str,
+        signature_hex: &str,
+        session_pub_key: &str,
+    ) -> Result<String, Box<dyn Error>> {
+        use crate::eth;
         if self.started {
             return Err(VotingError::AlreadyStarted.into());
         }
+        let sender = eth::EthAddress::from_hex(sender)?;
+        let signature = RecoverableSignature::from_hex(signature_hex)?;
+        let session_pub_key = PublicKey::parse_slice(&hex::decode(&session_pub_key)?, None)?;
 
-        let mut keccak = Keccak::v256();
-        let mut result = [0u8; 32];
-        keccak.update(&self.contract);
-        keccak.update(self.voting_id.as_bytes());
-        keccak.update(&self.operator_address());
-        keccak.finalize(&mut result);
-        let msg = secp256k1::Message::parse(&result);
+        let mesagage_hash = EthHash::personal_message(
+            format!("\nSgxRegister\nContract: {contract:x} {voting_id}\nAddress: {operator:x}\nSession: {session_addr:x}",
+                contract= self.contract,
+                voting_id = self.voting_id,
+                operator = self.operator_address(),
+                session_addr = session_pub_key.to_eth_address()
+            ),
+        );
+        if signature.recover_pub_key(&mesagage_hash)?.to_eth_address() != sender {
+            return Err(VotingError::InvalidAddress.into());
+        }
+        let hash = EthHash::new("SgxVotingTicket(address,bytes,address)")
+            .add(&self.contract)
+            .add(&self.voting_id)
+            .add(&sender)
+            .build();
+        self.voters.insert(sender, (session_pub_key, false));
 
-        let mut signature_packed = [0u8; 65];
-        hex::decode_to_slice(signature_hex, &mut signature_packed)?;
-        let recovery_id = secp256k1::RecoveryId::parse(signature_packed[0])?;
-        let signature = secp256k1::Signature::parse_slice(&signature_packed[1..])?;
+        let signature = hash.sign_by(&self.secret);
 
-        let voter_key = secp256k1::recover(&msg, &signature, &recovery_id)?;
-        let voter_addr = pub_key_to_ethaddr(&voter_key);
-
-        self.voters.insert(voter_addr, (voter_key, false));
-
-        Ok(())
+        Ok(signature.to_hex())
     }
 
-    pub fn vote(&mut self, sender: &str, encrypted_vote: &str) -> Result<(), Box<dyn Error>> {
+    pub fn vote(&mut self, sender: &str, encrypted_vote: &str) -> Result<String, Box<dyn Error>> {
         if !self.started {
             return Err(VotingError::NotStarted.into());
         }
 
-        let sender_addr = unhex_ethaddr(sender)?;
+        let sender_addr = EthAddress::from_hex(sender)?;
 
-        let (sender_key, voted_already) = self
+        let (_session_key, voted_already) = self
             .voters
             .get(&sender_addr)
             .ok_or(VotingError::InvalidAddress)?;
@@ -264,7 +260,8 @@ impl Voting {
             }
         }
 
-        Ok(())
+        // TODO encrypt response
+        Ok("ACCPETED".to_string())
     }
 
     pub fn report(&self) -> Result<Vec<(u32, u32)>, Box<dyn Error>> {

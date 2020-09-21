@@ -1,5 +1,6 @@
-use crate::voting::{unhex_ethaddr, Voting};
+use crate::voting::Voting;
 
+use crate::eth::EthAddress;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -25,7 +26,9 @@ enum Args {
         voting_id: String,
         operator_addr: String,
         /// sender signed keccak256 for register(contract, voting_id, operator_addr)
+        sender: String,
         signature: String,
+        session_pub_key: String,
     },
     /// starts the voting
     Start {
@@ -55,11 +58,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             contract,
             voting_id,
         } => {
-            let contract_addr = unhex_ethaddr(contract.as_str())?;
+            let contract_addr = EthAddress::from_hex(contract.as_str())?;
             let v = Voting::new(contract_addr, voting_id);
             v.save()?;
             let op_addr = hex::encode(&v.operator_address());
-            println!("INIT: OK {}", op_addr);
+            println!("OK {}", op_addr);
         }
         Args::Start {
             contract,
@@ -67,20 +70,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             operator_addr,
         } => {
             let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
-            v.start()?;
+            let list = v.start()?;
             v.save()?;
-            println!("START: OK");
+            println!("OK {}", list);
         }
         Args::Register {
             contract,
             voting_id,
             operator_addr,
+            sender,
             signature,
+            session_pub_key,
         } => {
             let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
-            v.register(signature.as_bytes())?;
+            let ticket = v.register(&sender, &signature, &session_pub_key)?;
             v.save()?;
-            println!("REGISTER: OK");
+            println!("OK {}", ticket);
         }
         Args::Vote {
             contract,
@@ -90,9 +95,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             encrypted_vote,
         } => {
             let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
-            v.vote(&sender, &encrypted_vote)?;
+            let response = v.vote(&sender, &encrypted_vote)?;
             v.save()?;
-            println!("VOTE: OK");
+            println!("OK {}", response);
         }
         Args::Report {
             contract,
