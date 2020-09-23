@@ -15,9 +15,9 @@ ya-runtime-api= { version = "0.1", git = "https://github.com/golemfactory/yagna.
 
 [workspace]
 members=[
-    'crates/trusted-voting-client',
-    'crates/trusted-voting-mgr',
-    'crates/trusted-voting-operator'
+    'crates/trustless-voting-client',
+    'crates/trustless-voting-mgr',
+    'crates/trustless-voting-operator'
 ]
 
 [profile.release]
@@ -26,5 +26,5 @@ opt-level=3
 panic="abort"
 
 [patch.crates-io]
-ya-client = { git = "https://github.com/golemfactory/ya-client.git", rev = "9876f116107de0b3521352e97ef766dceb10c4ef"}
+ya-client = { git = "https://github.com/golemfactory/ya-client.git", rev = "0efbf2f875d804a283d162fc9e1679516be08900"}
 

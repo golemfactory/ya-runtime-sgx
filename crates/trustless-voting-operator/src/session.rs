@@ -9,11 +9,12 @@ use ya_client::model::activity::ExeScriptCommand;
 use yarapi::rest;
 use yarapi::rest::activity::SgxActivity;
 use yarapi::rest::{Activity, RunningBatch};
+use std::collections::BTreeMap;
 
 const DEFAULT_REGISTRATION_TIME: Duration = Duration::from_secs(60 * 15);
 const DEFAULT_VOTING_TIME: Duration = Duration::from_secs(60 * 10);
 
-const ENYTY_POINT: &str = "trusted-voting-mgr";
+const ENYTY_POINT: &str = "trustless-voting-mgr";
 
 // Parses command output
 fn parse_output(output: &str) -> anyhow::Result<impl Iterator<Item = &str>> {
@@ -49,6 +50,7 @@ pub struct NewSession {
 pub struct NewVoter {
     sender: String,
     sign: String,
+    session_key: String
 }
 
 #[derive(Serialize, Clone)]
@@ -67,7 +69,8 @@ pub struct SessionDetails {
     pub voting_id: String,
     pub manager_address: String,
     pub state: State,
-    pub creditioals: ya_client::model::activity::Credentials,
+    pub tickets: BTreeMap<String, String>,
+    pub credentials: ya_client::model::activity::Credentials,
 }
 
 #[derive(Serialize, Clone)]
@@ -84,6 +87,11 @@ pub enum State {
         voting_deadline: DateTime<Utc>,
         voters: Vec<Voter>,
     },
+    Report {
+        voters: Vec<String>,
+        votes : BTreeMap<u32, u32>,
+        signature : String
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -146,7 +154,7 @@ pub async fn new_session(
             let tail: &str = &output["stdout: ".len()..];
             let mut it = tail.split_whitespace().fuse();
             let addr = match (it.next(), it.next(), it.next()) {
-                (Some("OK"), Some(addr), None) => addr,
+                (Some("OK"), Some(addr), _) => addr,
                 _ => anyhow::bail!("failed to initialize voting manager ({:?})", output),
             };
             let now = Utc::now();
@@ -163,7 +171,8 @@ pub async fn new_session(
                 },
             };
             let returned_info = info.clone();
-            let session_ref = Session { info, activity }.start();
+            let tickets = Default::default();
+            let session_ref = Session { info, tickets, activity }.start();
             let _ = manager::SessionMgr::from_registry().do_send(manager::Register(
                 returned_info.manager_address.clone(),
                 session_ref,
@@ -177,6 +186,7 @@ pub async fn new_session(
 
 pub struct Session {
     info: SessionInfo,
+    tickets: BTreeMap<String, String>,
     activity: SgxActivity,
 }
 
@@ -193,6 +203,7 @@ impl Session {
             self.info.manager_address.clone(),
         ];
         args.extend(command_args);
+        log::debug!("calling: {:?}", args);
         let batch = self.activity.exec(vec![rest::ExeScriptCommand::Run {
             entry_point: ENYTY_POINT.to_string(),
             args,
@@ -209,7 +220,14 @@ impl Session {
                 .with_context(|| format!("failed to get command results: {}", command))?;
 
             match result {
-                Some(rest::BatchEvent::StepSuccess { output, .. }) => Ok(output),
+                Some(rest::BatchEvent::StepSuccess { output, .. }) => {
+                    log::debug!("result: {}", output);
+                    Ok(output)
+                },
+                Some(rest::BatchEvent::StepFailed { message, ..}) => {
+                    log::debug!("processing faild with: {}", message);
+                    anyhow::bail!("unable to process {} command", command)
+                }
                 _ => anyhow::bail!("unable to process {} command", command),
             }
         }
@@ -244,12 +262,14 @@ impl Handler<GetDetails> for Session {
     type Result = MessageResult<GetDetails>;
 
     fn handle(&mut self, _msg: GetDetails, _ctx: &mut Self::Context) -> Self::Result {
+        let tickets = self.tickets.clone();
         MessageResult(SessionDetails {
             contract: self.info.contract.clone(),
             voting_id: self.info.voting_id.clone(),
             manager_address: self.info.manager_address.clone(),
             state: self.info.state.clone(),
-            creditioals: self.activity.credentials().unwrap(),
+            credentials: self.activity.credentials().unwrap(),
+            tickets
         })
     }
 }
@@ -279,28 +299,36 @@ impl Handler<Delete> for Session {
 }
 
 impl Message for NewVoter {
-    type Result = anyhow::Result<SessionInfo>;
+    type Result = anyhow::Result<String>;
 }
 
 impl Handler<NewVoter> for Session {
-    type Result = ResponseActFuture<Self, anyhow::Result<SessionInfo>>;
+    type Result = ResponseActFuture<Self, anyhow::Result<String>>;
 
     fn handle(&mut self, msg: NewVoter, _ctx: &mut Self::Context) -> Self::Result {
         let sender = msg.sender;
         let out = self
-            .exec_command("register", vec![sender.clone(), msg.sign.clone()])
+            .exec_command("register", vec![sender.clone(), msg.sign.clone(), msg.session_key.clone()])
             .into_actor(self)
             .then(move |output: anyhow::Result<_>, act, _ctx| {
+                log::debug!("got register command result: {:?}", output);
                 fut::ready((|| -> anyhow::Result<_> {
-                    let _output = output?;
+                    let output = output?;
                     match &mut act.info.state {
                         State::Init { voters, .. } => {
-                            voters.push(sender);
+                            voters.push(sender.clone());
                             Ok(())
                         }
                         _ => Err(anyhow::anyhow!("invalid state for register")),
                     }?;
-                    Ok(act.info.clone())
+                    let prefix = "stdout: OK ";
+                    let ticket = if output.starts_with(prefix) {
+                        output[prefix.len()..].trim().to_string()
+                    } else {
+                        output
+                    };
+                    let _ = act.tickets.insert(sender, ticket.clone());
+                    Ok(ticket)
                 })())
             });
         Box::pin(out)
@@ -345,6 +373,47 @@ impl Handler<Start> for Session {
         ))
     }
 }
+
+struct Finish;
+
+impl Message for Finish {
+    type Result = anyhow::Result<SessionInfo>;
+}
+
+
+impl Handler<Finish> for Session {
+    type Result = ActorResponse<Self, SessionInfo, anyhow::Error>;
+
+    fn handle(&mut self, _msg: Finish, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.info.state {
+            State::Voting { .. } => true,
+            _ => return ActorResponse::reply(Ok(self.info.clone())),
+        };
+        ActorResponse::r#async(self.exec_command("report", vec![]).into_actor(self).then(
+            |output, act, _ctx| {
+                fut::result((|| {
+                    let output = output?;
+                    let mut it = parse_output(&output)?;
+                    let signature = it.next().ok_or_else(|| anyhow::anyhow!("missing signature"))?.to_string();
+                    let mut votes = BTreeMap::new();
+                    while let (Some(key), Some(value)) = (it.next(), it.next()) {
+                        let k = u32::from_str_radix(key, 16)?;
+                        let v = u32::from_str_radix(value, 16)?;
+                        let _ = votes.insert(k, v);
+                    }
+                    let new_state = State::Report {
+                        voters: Default::default(),
+                        votes,
+                        signature
+                    };
+                    act.info.state = new_state;
+                    Ok(act.info.clone())
+                })())
+            },
+        ))
+    }
+}
+
 
 pub struct NewVote(String, Vec<u8>);
 
@@ -400,7 +469,7 @@ pub async fn delete_manager(manager_addr: String) -> actix_web::Result<()> {
 pub async fn register_voter(
     manager_addr: String,
     voter: NewVoter,
-) -> actix_web::Result<SessionInfo> {
+) -> actix_web::Result<String> {
     let voting_session = manager::SessionMgr::from_registry()
         .send(manager::Get(manager_addr.clone()))
         .await
@@ -442,17 +511,28 @@ pub async fn operator_start(manager_addr: String) -> actix_web::Result<SessionIn
         .map_err(actix_web::error::ErrorInternalServerError)
 }
 
+pub async fn operator_finish(manager_addr: String) -> actix_web::Result<SessionInfo> {
+    get_session_actor(manager_addr)
+        .await?
+        .send(Finish)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?
+        .map_err(actix_web::error::ErrorInternalServerError)
+}
+
+
 pub async fn send_vote(
     manager_addr: String,
     sender: String,
     vote: Vec<u8>,
 ) -> actix_web::Result<Vec<u8>> {
+
     get_session_actor(manager_addr)
         .await?
         .send(NewVote(sender, vote))
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?
-        .map_err(actix_web::error::ErrorInternalServerError)
+        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("{:?}", e)))
 }
 
 pub async fn delete_all_sessions() {

@@ -1,6 +1,7 @@
 use crate::voting::Voting;
 
 use crate::eth::EthAddress;
+use anyhow::Context;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -52,7 +53,14 @@ enum Args {
     },
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
+    match run() {
+        Ok(()) => (),
+        Err(e) => println!("ERROR v2 {:?}", e),
+    }
+}
+
+fn run() -> anyhow::Result<()> {
     match Args::from_args() {
         Args::Init {
             contract,
@@ -60,7 +68,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         } => {
             let contract_addr = EthAddress::from_hex(contract.as_str())?;
             let v = Voting::new(contract_addr, voting_id);
-            v.save()?;
+            v.save().context("init save")?;
             let op_addr = hex::encode(&v.operator_address());
             let op_pkey = hex::encode(v.operator_pubkey().as_ref());
             println!("OK {} {}", op_addr, op_pkey);
@@ -70,9 +78,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             voting_id,
             operator_addr,
         } => {
-            let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
-            let list = v.start()?;
-            v.save()?;
+            let mut v = Voting::load(&contract, &voting_id, &operator_addr).context("load")?;
+            let list = v.start().context("start")?;
+            v.save().context("save")?;
             println!("OK {}", list);
         }
         Args::Register {
@@ -83,9 +91,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             signature,
             session_pub_key,
         } => {
-            let mut v = Voting::load(&contract, &voting_id, &operator_addr)?;
-            let ticket = v.register(&sender, &signature, &session_pub_key)?;
-            v.save()?;
+            let mut v = Voting::load(&contract, &voting_id, &operator_addr)
+                .with_context(|| "loading state")?;
+            let ticket = v
+                .register(&sender, &signature, &session_pub_key)
+                .context("register")?;
+            v.save().context("save")?;
             println!("OK {}", ticket);
         }
         Args::Vote {
@@ -106,12 +117,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             operator_addr,
         } => {
             let v = Voting::load(&contract, &voting_id, &operator_addr)?;
-            let results = v.report()?;
-            println!("Results:");
-            for (option, votes) in results.iter() {
-                println!("{}: {}", option, votes);
-            }
-            println!("REPORT: OK");
+            let (results, signature) = v.report()?;
+
+            let formated_results = results
+                .into_iter()
+                .map(|(k, v)| format!("{:x} {:x}", k, v))
+                .collect::<Vec<_>>()
+                .join(" ");
+            println!("OK {} {}", signature, formated_results);
         }
     }
     Ok(())

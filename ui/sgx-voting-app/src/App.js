@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as Bs from 'react-bootstrap';
 import Sessions from "./Sessions";
 import Nodes from './Nodes';
@@ -8,6 +8,7 @@ import SessionDetails from "./SessionDetails";
 
 
 function App() {
+    const [account, setAccount] = useState(null);
 
     return (
         <Router basename="x" >
@@ -22,7 +23,7 @@ function App() {
                     </Bs.Nav>
                 </Bs.Navbar.Collapse>
                 <Bs.Navbar>
-                    <Web3Connect/>
+                    <Web3Connect handleAccountChange={(account) => setAccount(account)}/>
                 </Bs.Navbar>
             </Bs.Navbar>
             </header>
@@ -34,7 +35,7 @@ function App() {
                                 <Sessions></Sessions>
                             </Route>
                             <Route path="/sessions/:managerAddress">
-                                <SessionDetails/>
+                                <SessionDetails account={account}/>
                             </Route>
                             <Route path="/sessions">
                                 <Sessions/>

@@ -22,6 +22,7 @@ structopt="0.3.17"
 dotenv="0.15.0"
 tokio = { version = "0.2", features=["time"]}
 hex="0.4.2"
+thiserror = "1.0.20"
 
-yarapi = { git="https://github.com/golemfactory/yarapi.git", rev="cb557ecb76f8131f26909f38a4af74cf5b2a7f3e"  }
-ya-client = { git = "https://github.com/golemfactory/ya-client.git", rev = "9876f116107de0b3521352e97ef766dceb10c4ef" }
+yarapi = { git="https://github.com/golemfactory/yarapi.git", rev="dcc33ce0b716b2734c1f049ac96774e9dbdf005c"  }
+ya-client = { git = "https://github.com/golemfactory/ya-client.git", rev = "0efbf2f875d804a283d162fc9e1679516be08900" }

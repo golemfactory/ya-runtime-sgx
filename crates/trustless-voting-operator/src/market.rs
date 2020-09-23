@@ -1,9 +1,11 @@
 use chrono::{DateTime, Utc};
+
 use futures::prelude::*;
 use std::time::Duration;
 use yarapi::rest;
 
-const PACKAGE : &str = "hash:sha3:61c73e07e72ac7577857181043e838d7c40b787e2971ceca6ccb5922:http://yacn.dev.golem.network.:8000/trusted-voting-mgr-787e2971ceca6ccb5922.ywasi";
+//const PACKAGE : &str = "hash:sha3:5e50bf012d5f7466d23d8557dc7b570134ac8e7c0ff66077f432a0d7:http://yacn.dev.golem.network.:8000/trusted-voting-mgr-8e7c0ff66077f432a0d7.ywasi";
+const PACKAGE : &str = "hash:sha3:4365f695f264bfe4c4ec527874bc03fec4b318fa955d60f8dfc95c6c:http://yacn.dev.golem.network.:8000/trustless-voting-mgr-18fa955d60f8dfc95c6c.ywasi";
 
 pub async fn list_nodes(
     market: rest::Market,
@@ -25,7 +27,7 @@ pub async fn list_nodes(
     );
     let subscrption = market.subscribe(&props, &constraints).await?;
     let mut collected_nodes = Vec::new();
-    let _ignore = actix_rt::time::timeout(
+    let result = actix_rt::time::timeout(
         Duration::from_secs(15),
         subscrption.proposals().try_for_each(|p| {
             if p.is_response() {
@@ -45,15 +47,16 @@ pub async fn list_nodes(
             let constraints = constraints.clone();
             async move {
                 if p.is_response() {
-                    p.reject_proposal().await?;
+                    let _ignore = p.reject_proposal().await;
                 } else {
-                    p.counter_proposal(&props, &constraints).await?;
-                }
+                    let _ignore = p.counter_proposal(&props, &constraints).await;
+                };
                 Ok(())
             }
         }),
     )
     .await;
+    log::error!("r={:?}", result);
     Ok(collected_nodes)
 }
 
