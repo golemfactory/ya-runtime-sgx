@@ -69,6 +69,22 @@ run() {
         -- /graphene/Runtime/pal-Linux-SGX /graphene/Runtime/libpal-Linux-SGX.so init sgx-exe-unit.manifest.sgx -b ./ya-runtime-sgx-wasi -c protected/cache -w . -a agreement.json --requestor-pub-key ${rest}
 }
 
+gen_json() {
+json=$(cat <<EOF
+{
+   "enableAttestation": true,
+   "exeunitHashes": ["$@"],
+   "allowDebug": true,
+   "allowOutdatedTcb": true,
+   "maxEvidenceAge": 60
+}\n
+EOF
+)
+    printf "\nAttestation config saved to sgx_config.json\n"
+    printf "Set YAGNA_SGX_CONFIG to override requestor's default\n"
+    printf "$json" > sgx_config.json
+}
+
 sign() {
     if [ ! -v ENCLAVE_KEY_PATH ]; then
         echo "Enclave key not found!"
@@ -77,7 +93,9 @@ sign() {
 
     run_in_nsjail /graphene/scripts/pal-sgx-sign --output ya-runtime-sgx-wasi.manifest.sgx --libpal /graphene/Runtime/libpal-Linux-SGX.so --key $ENCLAVE_KEY_PATH --manifest ya-runtime-sgx-wasi.manifest --exec ya-runtime-sgx-wasi
 
-    run_in_nsjail /graphene/scripts/pal-sgx-sign --output sgx-exe-unit.manifest.sgx --libpal /graphene/Runtime/libpal-Linux-SGX.so --key $ENCLAVE_KEY_PATH --manifest sgx-exe-unit.manifest --exec sgx-exe-unit
+    out=$(run_in_nsjail /graphene/scripts/pal-sgx-sign --output sgx-exe-unit.manifest.sgx --libpal /graphene/Runtime/libpal-Linux-SGX.so --key $ENCLAVE_KEY_PATH --manifest sgx-exe-unit.manifest --exec sgx-exe-unit)
+    echo "${out}"
+    gen_json $(echo -e "${out}" | tail -n1 | tr -d '[:space:]')
 }
 
 token() {

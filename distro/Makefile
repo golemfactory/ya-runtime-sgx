@@ -30,7 +30,7 @@ graphene/.ready: graphene.Dockerfile
 
 ya-runtime-sgx.tar.gz: $(ALL_TARGETS) ya-runtime-sgx.json exe-unit-wrapper.sh
 	./exe-unit-wrapper.sh sign
-	tar -vczf $@ --exclude graphene/.ready ya-runtime-sgx.json yagna nsjail graphene exe-unit-wrapper.sh
+	tar -vczf $@ --exclude graphene/.ready ya-runtime-sgx.json yagna nsjail graphene exe-unit-wrapper.sh sgx_config.json
 
 .PHONY: release
 release: ya-runtime-sgx.tar.gz
