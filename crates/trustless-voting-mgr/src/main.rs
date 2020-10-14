@@ -2,12 +2,11 @@ use crate::voting::Voting;
 
 use crate::eth::EthAddress;
 use anyhow::Context;
-use std::error::Error;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-pub fn prv_path(f: &str) -> PathBuf {
-    AsRef::<Path>::as_ref("/private").join(f)
+pub fn prv_path<P: AsRef<Path>>(f: P) -> PathBuf {
+    AsRef::<Path>::as_ref("/private").join(f.as_ref())
 }
 
 mod eth;
