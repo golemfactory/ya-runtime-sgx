@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build amd64
     runs-on: ${{ matrix.os }}-latest
     strategy:
       matrix:
@@ -67,4 +67,30 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --workspace
+          args: -p ya-runtime-sgx -p trustless-voting-client -p trustless-voting-operator
+
+  build_wasm32_wasi:
+    name: Build wasm32_wasi
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        
+      - name: Install Last Stable Rust wasm32_wasi
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-wasi
+          override: true
+      
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: -p trustless-voting-mgr --target wasm32-wasi
