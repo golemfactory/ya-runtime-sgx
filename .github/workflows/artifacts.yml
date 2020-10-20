@@ -1,21 +1,55 @@
-name: Artifacts
+name: Release
 
 on:
   push:
-    branches:
-      - actions/artifacts*
     tags:
       - v*
       - pre-rel-*
 
 env:
-  MAKE_OPTS: ''
+  MAKE_ARGS: ''
 
 jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        uses: actions/github-script@v3.0
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            let tag = context.payload.ref.replace(/.*\//, '');
+            let buildNo = context.runNumber;
+            let versionName = tag.replace(/^pre-rel-/,'');
+            try {
+              let release =  await github.request("GET /repos/:owner/:repo/releases/tags/:tag", {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag
+              });
+            }
+            catch(e) {
+              let body = ["By installing & running this software you declare that you have read",
+                "understood and hereby accept the disclaimer and",
+                "privacy warning found at https://handbook.golem.network/see-also/terms"].join("\n");
+              let release =  await github.request("POST /repos/:owner/:repo/releases", {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                data: {
+                  tag_name: tag,
+                  prerelease: true,
+                  body: body,
+                  name: `${versionName} #${buildNo}`
+                }
+              });
+              console.log(release.data.upload_url);
+            }
 
   build:
-    name: Build and upload
-    runs-on: ${{ matrix.os }}-latest
+    name: Build release
+    needs: create-release
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
@@ -91,34 +125,67 @@ jobs:
       - name: On cache restoration - graphene
         if: steps.cache-graphene.outputs.cache-hit == 'true'
         run: |
-          echo "MAKE_OPTS=$MAKE_OPTS -o graphene/.ready" >> $GITHUB_ENV
+          echo "MAKE_ARGS=$MAKE_ARGS -o graphene/.ready" >> $GITHUB_ENV
 
       - name: On cache restoration - nsjail
         if: steps.cache-nsjail.outputs.cache-hit == 'true'
         run: |
-          echo "MAKE_OPTS=$MAKE_OPTS -o nsjail" >> $GITHUB_ENV
+          echo "MAKE_ARGS=$MAKE_ARGS -o nsjail" >> $GITHUB_ENV
 
       - name: On cache restoration - sgx-exe-unit
         if: steps.cache-sgx-exe-unit.outputs.cache-hit == 'true'
         run: |
-          echo "MAKE_OPTS=$MAKE_OPTS -o yagna/sgx-exe-unit -o yagna/libgcc_s.so.1 -o yagna/liblzma.so.5" >> $GITHUB_ENV
+          echo "MAKE_ARGS=$MAKE_ARGS -o yagna/sgx-exe-unit -o yagna/libgcc_s.so.1 -o yagna/liblzma.so.5" >> $GITHUB_ENV
 
       - name: On cache restoration - ya-runtime-sgx-wasi
         if: steps.cache-ya-runtime-sgx-wasi.outputs.cache-hit == 'true'
         run: |
-          echo "MAKE_OPTS=$MAKE_OPTS -o yagna/ya-runtime-sgx-wasi" >> $GITHUB_ENV
+          echo "MAKE_ARGS=$MAKE_ARGS -o yagna/ya-runtime-sgx-wasi" >> $GITHUB_ENV
 
       - name: Build ya-runtime-sgx
         run: |
           cargo build --release --target x86_64-unknown-linux-musl
 
-      - name: Build package
+      - name: Build Release
         working-directory: distro
         run: |
-          make $MAKE_OPTS build
+          make $MAKE_ARGS build
 
-      - name: Upload package
-        uses: actions/upload-artifact@v2
+      - name: Get upload url
+        id: release_upload_url
+        uses: actions/github-script@0.9.0
         with:
-          name: ya-runtime-sgx-${{ github.run_id }}.tar.gz
-          path: distro/ya-runtime-sgx-artifacts.tar.gz
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          result-encoding: string
+          script: |
+            let tag = context.payload.ref.replace(/.*\//, '');
+            let release =  await github.request("GET /repos/:owner/:repo/releases/tags/:tag", {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag
+            });
+            console.log(release.data.upload_url);
+            return release.data.upload_url
+
+      - name: Extract Version
+        id: version
+        shell: bash
+        env:
+          OS_NAME: ${{ matrix.os }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          TAG_NAME="${GITHUB_REF##*/}"
+          TAGV_NAME="${TAG_NAME#pre-rel-}"
+          VERSION=${TAGV_NAME#v}
+          echo "::set-output name=tagv::${TAG_NAME}"
+          echo "::set-output name=version::${VERSION}"
+
+      - name: Upload Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.release_upload_url.outputs.result }}
+          asset_path: distro/ya-runtime-sgx-artifacts.tar.gz
+          asset_name: ya-runtime-sgx_${{ steps.version.outputs.tagv }}.tar.gz
+          asset_content_type: application/vnd.debian.binary-package
