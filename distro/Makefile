@@ -1,7 +1,7 @@
 TAG=build-exe-unit
 SGX_DRIVER=sgx_driver_2.6
-EXE_UNIT_VER=bede466067c67d0400ad441f298be6978ed28fb4
-WASI_VER=dcbdf9b581d01b26806c4697e793d9690e6550c3
+EXE_UNIT_VER=9fd74a641439e9c337a7c5a24d2435ef9c91710d
+WASI_VER=08bcda4f4ef19a45d9d267d0d15a2c7b560504c5
 
 ALL_TARGETS=yagna/sgx-exe-unit nsjail yagna/ya-runtime-sgx-wasi yagna/libgcc_s.so.1 yagna/liblzma.so.5 graphene/.ready
 all: $(ALL_TARGETS)
@@ -30,7 +30,13 @@ graphene/.ready: graphene.Dockerfile
 
 ya-runtime-sgx.tar.gz: $(ALL_TARGETS) ya-runtime-sgx.json exe-unit-wrapper.sh
 	./exe-unit-wrapper.sh sign
-	tar -vczf $@ --exclude graphene/.ready ya-runtime-sgx.json yagna nsjail graphene exe-unit-wrapper.sh sgx_config.json
+	tar -vczf $@ --exclude graphene/.ready $^ graphene sgx_config.json
+
+ya-runtime-sgx-artifacts.tar.gz: $(ALL_TARGETS) ya-runtime-sgx.json exe-unit-wrapper.sh
+	tar -vczf $@ --exclude graphene/.ready $^ graphene
+
+.PHONY: build
+build: ya-runtime-sgx-artifacts.tar.gz
 
 .PHONY: release
 release: ya-runtime-sgx.tar.gz
@@ -41,4 +47,4 @@ gen_key:
 
 .PHONY: clean
 clean:
-	$(RM) -rf $(ALL_TARGETS) graphene
+	$(RM) -rf $(ALL_TARGETS) graphene ya-runtime-sgx.tar.gz ya-runtime-sgx-artifacts.tar.gz

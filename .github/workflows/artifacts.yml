@@ -1,0 +1,124 @@
+name: Artifacts
+
+on:
+  push:
+    branches:
+      - actions/artifacts*
+    tags:
+      - v*
+      - pre-rel-*
+
+env:
+  MAKE_OPTS: ''
+
+jobs:
+
+  build:
+    name: Build and upload
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        os:
+          - ubuntu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Musl
+        if: matrix.os == 'ubuntu'
+        run: |
+          sudo apt-get install musl musl-tools
+          musl-gcc -v
+
+      - uses: actions-rs/toolchain@v1
+        if: matrix.os != 'ubuntu'
+        with:
+          toolchain: stable
+
+      - uses: actions-rs/toolchain@v1
+        if: matrix.os == 'ubuntu'
+        with:
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+
+      - name: Fetch nsjail revision hash
+        id: nsjail-rev
+        run: |
+          echo "::set-output name=rev::$(git ls-remote -q https://github.com/golemfactory/nsjail | head -n1 | grep -o '^[^[:space:]]\+')"
+
+      - name: Cache graphene
+        id: cache-graphene
+        uses: actions/cache@v2
+        with:
+          path: ${{ github.workspace }}/distro/graphene
+          key: ${{ runner.os }}-graphene-${{ hashFiles('distro/Makefile', 'distro/graphene.Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-graphene-
+
+      - name: Cache nsjail
+        id: cache-nsjail
+        uses: actions/cache@v2
+        with:
+          path: ${{ github.workspace }}/distro/nsjail
+          key: ${{ runner.os }}-nsjail-${{ steps.nsjail-rev.outputs.rev }}-${{ hashFiles('distro/Makefile', 'distro/graphene.Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-nsjail-
+
+      - name: Cache sgx-exe-unit
+        id: cache-sgx-exe-unit
+        uses: actions/cache@v2
+        with:
+          path: |
+            ${{ github.workspace }}/distro/yagna/sgx-exe-unit
+            ${{ github.workspace }}/distro/yagna/libgcc_s.so.1
+            ${{ github.workspace }}/distro/yagna/liblzma.so.5
+          key: ${{ runner.os }}-sgx-exe-unit-${{ hashFiles('distro/Makefile', 'distro/exe-unit.Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-sgx-exe-unit-
+
+      - name: Cache ya-runtime-sgx-wasi
+        id: cache-ya-runtime-sgx-wasi
+        uses: actions/cache@v2
+        with:
+          path: ${{ github.workspace }}/distro/yagna/ya-runtime-sgx-wasi
+          key: ${{ runner.os }}-sgx-wasi-${{ hashFiles('distro/Makefile', 'distro/ya-runtime-wasi.Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-sgx-wasi-
+
+      - name: On cache restoration - graphene
+        if: steps.cache-graphene.outputs.cache-hit == 'true'
+        run: |
+          echo "MAKE_OPTS=$MAKE_OPTS -o graphene/.ready" >> $GITHUB_ENV
+
+      - name: On cache restoration - nsjail
+        if: steps.cache-nsjail.outputs.cache-hit == 'true'
+        run: |
+          echo "MAKE_OPTS=$MAKE_OPTS -o nsjail" >> $GITHUB_ENV
+
+      - name: On cache restoration - sgx-exe-unit
+        if: steps.cache-sgx-exe-unit.outputs.cache-hit == 'true'
+        run: |
+          echo "MAKE_OPTS=$MAKE_OPTS -o yagna/sgx-exe-unit -o yagna/libgcc_s.so.1 -o yagna/liblzma.so.5" >> $GITHUB_ENV
+
+      - name: On cache restoration - ya-runtime-sgx-wasi
+        if: steps.cache-ya-runtime-sgx-wasi.outputs.cache-hit == 'true'
+        run: |
+          echo "MAKE_OPTS=$MAKE_OPTS -o yagna/ya-runtime-sgx-wasi" >> $GITHUB_ENV
+
+      - name: Build ya-runtime-sgx
+        run: |
+          cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Build package
+        working-directory: distro
+        run: |
+          make $MAKE_OPTS build
+
+      - name: Upload package
+        uses: actions/upload-artifact@v2
+        with:
+          name: ya-runtime-sgx-${{ github.run_id }}.tar.gz
+          path: distro/ya-runtime-sgx-artifacts.tar.gz
