@@ -1,5 +1,5 @@
 [package]
-name = "trusted-voting-client"
+name = "trustless-voting-client"
 version = "0.1.0"
 authors = ["Golem Factory <contact@golem.network>"]
 edition = "2018"
