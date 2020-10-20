@@ -4,12 +4,12 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::time::Duration;
 use ya_client::model::activity::ExeScriptCommand;
 use yarapi::rest;
 use yarapi::rest::activity::SgxActivity;
 use yarapi::rest::{Activity, RunningBatch};
-use std::collections::BTreeMap;
 
 const DEFAULT_REGISTRATION_TIME: Duration = Duration::from_secs(60 * 15);
 const DEFAULT_VOTING_TIME: Duration = Duration::from_secs(60 * 10);
@@ -50,7 +50,7 @@ pub struct NewSession {
 pub struct NewVoter {
     sender: String,
     sign: String,
-    session_key: String
+    session_key: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -89,9 +89,9 @@ pub enum State {
     },
     Report {
         voters: Vec<String>,
-        votes : BTreeMap<u32, u32>,
-        signature : String
-    }
+        votes: BTreeMap<u32, u32>,
+        signature: String,
+    },
 }
 
 #[derive(Serialize, Clone)]
@@ -172,7 +172,12 @@ pub async fn new_session(
             };
             let returned_info = info.clone();
             let tickets = Default::default();
-            let session_ref = Session { info, tickets, activity }.start();
+            let session_ref = Session {
+                info,
+                tickets,
+                activity,
+            }
+            .start();
             let _ = manager::SessionMgr::from_registry().do_send(manager::Register(
                 returned_info.manager_address.clone(),
                 session_ref,
@@ -223,8 +228,8 @@ impl Session {
                 Some(rest::BatchEvent::StepSuccess { output, .. }) => {
                     log::debug!("result: {}", output);
                     Ok(output)
-                },
-                Some(rest::BatchEvent::StepFailed { message, ..}) => {
+                }
+                Some(rest::BatchEvent::StepFailed { message, .. }) => {
                     log::debug!("processing faild with: {}", message);
                     anyhow::bail!("unable to process {} command", command)
                 }
@@ -269,7 +274,7 @@ impl Handler<GetDetails> for Session {
             manager_address: self.info.manager_address.clone(),
             state: self.info.state.clone(),
             credentials: self.activity.credentials().unwrap(),
-            tickets
+            tickets,
         })
     }
 }
@@ -308,7 +313,10 @@ impl Handler<NewVoter> for Session {
     fn handle(&mut self, msg: NewVoter, _ctx: &mut Self::Context) -> Self::Result {
         let sender = msg.sender;
         let out = self
-            .exec_command("register", vec![sender.clone(), msg.sign.clone(), msg.session_key.clone()])
+            .exec_command(
+                "register",
+                vec![sender.clone(), msg.sign.clone(), msg.session_key.clone()],
+            )
             .into_actor(self)
             .then(move |output: anyhow::Result<_>, act, _ctx| {
                 log::debug!("got register command result: {:?}", output);
@@ -380,7 +388,6 @@ impl Message for Finish {
     type Result = anyhow::Result<SessionInfo>;
 }
 
-
 impl Handler<Finish> for Session {
     type Result = ActorResponse<Self, SessionInfo, anyhow::Error>;
 
@@ -394,7 +401,10 @@ impl Handler<Finish> for Session {
                 fut::result((|| {
                     let output = output?;
                     let mut it = parse_output(&output)?;
-                    let signature = it.next().ok_or_else(|| anyhow::anyhow!("missing signature"))?.to_string();
+                    let signature = it
+                        .next()
+                        .ok_or_else(|| anyhow::anyhow!("missing signature"))?
+                        .to_string();
                     let mut votes = BTreeMap::new();
                     while let (Some(key), Some(value)) = (it.next(), it.next()) {
                         let k = u32::from_str_radix(key, 16)?;
@@ -404,7 +414,7 @@ impl Handler<Finish> for Session {
                     let new_state = State::Report {
                         voters: Default::default(),
                         votes,
-                        signature
+                        signature,
                     };
                     act.info.state = new_state;
                     Ok(act.info.clone())
@@ -413,7 +423,6 @@ impl Handler<Finish> for Session {
         ))
     }
 }
-
 
 pub struct NewVote(String, Vec<u8>);
 
@@ -466,10 +475,7 @@ pub async fn delete_manager(manager_addr: String) -> actix_web::Result<()> {
     r.map_err(actix_web::error::ErrorInternalServerError)
 }
 
-pub async fn register_voter(
-    manager_addr: String,
-    voter: NewVoter,
-) -> actix_web::Result<String> {
+pub async fn register_voter(manager_addr: String, voter: NewVoter) -> actix_web::Result<String> {
     let voting_session = manager::SessionMgr::from_registry()
         .send(manager::Get(manager_addr.clone()))
         .await
@@ -520,13 +526,11 @@ pub async fn operator_finish(manager_addr: String) -> actix_web::Result<SessionI
         .map_err(actix_web::error::ErrorInternalServerError)
 }
 
-
 pub async fn send_vote(
     manager_addr: String,
     sender: String,
     vote: Vec<u8>,
 ) -> actix_web::Result<Vec<u8>> {
-
     get_session_actor(manager_addr)
         .await?
         .send(NewVote(sender, vote))
