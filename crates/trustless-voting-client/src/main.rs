@@ -1,10 +1,6 @@
 use aes_gcm::{
+    aead::{generic_array::GenericArray, Aead, NewAead},
     Aes256Gcm,
-    aead::{
-        Aead,
-        NewAead,
-        generic_array::GenericArray,
-    },
 };
 use rand::Rng;
 use secp256k1::{PublicKey, SecretKey};
@@ -78,7 +74,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             let key = read_key()?;
             let pkey = PublicKey::from_secret_key(&key);
 
-            let msg = format!("\nSgxRegister\nContract: {} {}\nAddress: {}\nSession: {}",
+            let msg = format!(
+                "\nSgxRegister\nContract: {} {}\nAddress: {}\nSession: {}",
                 contract,
                 voting_id,
                 mgr_addr,
@@ -98,15 +95,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             let mut sig_packed = hex::encode(sig.serialize().as_ref());
             sig_packed.push_str(&hex::encode(&[rid.serialize() + 27])); // +27 to match manager format
 
-
             println!("KEY {}", hex::encode(&pkey.serialize().as_ref()));
             println!("ADDR: {}", hex::encode(pub_key_to_ethaddr(&pkey)));
             println!("OK {}", sig_packed);
         }
-        Args::EncryptVote {
-            mgr_key,
-            vote,
-        } => {
+        Args::EncryptVote { mgr_key, vote } => {
             let key = read_key()?;
 
             let mut mgr_key_bytes = [0u8; 65];
@@ -123,7 +116,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             let msg = vote.to_le_bytes();
 
-            let ct = cipher.encrypt(nonce, msg.as_ref()).map_err(|e| format!("Encryption error: {}", e).to_string())?;
+            let ct = cipher
+                .encrypt(nonce, msg.as_ref())
+                .map_err(|e| format!("Encryption error: {}", e).to_string())?;
 
             println!("CT: {}{}", hex::encode(nonce.as_slice()), hex::encode(&ct));
         }
