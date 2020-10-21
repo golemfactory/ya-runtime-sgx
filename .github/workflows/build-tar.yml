@@ -5,6 +5,10 @@ on:
     branches:
       - master*
       - release/*
+  pull_request:
+    branches:
+      - master
+      - release/*
 
 env:
   MAKE_ARGS: ''
@@ -108,8 +112,14 @@ jobs:
         run: |
           make $MAKE_ARGS build
 
-      - name: Upload Release
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+
+      - name: Upload tar
         uses: actions/upload-artifact@v2
         with:
-          name: ya-runtime-sgx-${{ github.ref }}-linux.tar.gz
+          name: ya-runtime-sgx-${{ steps.version.outputs.sha_short }}-linux.tar.gz
           path: distro/ya-runtime-sgx-artifacts.tar.gz
