@@ -1,13 +1,11 @@
 use crate::session::SessionInfo;
-use actix_web::{
-    delete, get, post, put, web, App, HttpResponse, HttpServer, Responder,
-};
+use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
 
 use std::sync::Arc;
 
+use futures::StreamExt;
 use structopt::StructOpt;
 use yarapi::rest;
-use futures::StreamExt;
 
 mod market;
 mod session;
@@ -86,14 +84,16 @@ async fn send_vote(path: web::Path<(String, String)>, mut vote: web::Payload) ->
     let (manager_addr, sender) = path.into_inner();
 
     let mut bytes = Vec::new();
-     while let Some(item) = vote.next().await {
-         bytes.extend_from_slice(&item?);
+    while let Some(item) = vote.next().await {
+        bytes.extend_from_slice(&item?);
     }
     log::debug!("recived vote: {} bytes ", bytes.len());
 
     let response = session::send_vote(manager_addr, sender, bytes).await?;
     Ok::<_, actix_web::Error>(
-        HttpResponse::Ok().content_type("application/octet-stream").body(response)
+        HttpResponse::Ok()
+            .content_type("application/octet-stream")
+            .body(response),
     )
 }
 
@@ -108,7 +108,6 @@ async fn session_finish(msg_addr: web::Path<(String,)>) -> impl Responder {
     let session_info = session::operator_finish(msg_addr.into_inner().0).await?;
     Ok::<_, actix_web::Error>(web::Json(session_info))
 }
-
 
 #[post("/admin/shutdown")]
 async fn admin_shutdown() -> impl Responder {
