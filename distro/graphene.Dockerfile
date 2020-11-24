@@ -91,7 +91,7 @@ RUN git clone https://github.com/oscarlab/graphene.git
 
 WORKDIR /leeroy/graphene
 
-RUN git submodule init && git submodule update 
+RUN git submodule init && git submodule update
 
 RUN cd Pal/src/host/Linux-SGX/sgx-driver && ./link-intel-driver.py
 
@@ -111,6 +111,3 @@ RUN tar czvfh runtime.tar.gz \
         --exclude pal_gdb-Linux-SGX \
         --exclude pal-Linux \
         Runtime/ scripts/
-
-
-

@@ -19,3 +19,5 @@ Cargo.lock
 
 # Editors
 .*.swp
+
+**/.DS_Store
