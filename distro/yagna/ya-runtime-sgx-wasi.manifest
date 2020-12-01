@@ -1,0 +1,38 @@
+loader.exec = file:/work/ya-runtime-sgx-wasi
+loader.preload = file:/graphene/Runtime/libsysdb.so
+loader.env.LD_LIBRARY_PATH = /lib:/usr/lib
+
+loader.debug_type = none
+loader.syscall_symbol = syscalldb
+loader.insecure__use_cmdline_argv = 1
+
+fs.mount.graphene_lib.type = chroot
+fs.mount.graphene_lib.path = /lib
+fs.mount.graphene_lib.uri = file:/graphene/Runtime
+
+fs.mount.libgcc_s.type = chroot
+fs.mount.libgcc_s.path = /usr/lib/libgcc_s.so.1
+fs.mount.libgcc_s.uri = file:/work/libgcc_s.so.1
+
+fs.mount.protected.type = chroot
+fs.mount.protected.path = /protected
+fs.mount.protected.uri = file:protected
+
+sgx.trusted_files.ld = file:/graphene/Runtime/ld-linux-x86-64.so.2
+sgx.trusted_files.libc = file:/graphene/Runtime/libc.so.6
+sgx.trusted_files.libdl = file:/graphene/Runtime/libdl.so.2
+sgx.trusted_files.libm = file:/graphene/Runtime/libm.so.6
+sgx.trusted_files.librt = file:/graphene/Runtime/librt.so.1
+sgx.trusted_files.libpthread = file:/graphene/Runtime/libpthread.so.0
+
+sgx.trusted_files.libgcc_s = file:/work/libgcc_s.so.1
+
+sgx.allow_file_creation = 1
+
+sgx.protected_files_key = ffeeddccbbaa99887766554433221100
+sgx.protected_files.input = file:protected
+sgx.protected_files.deploy = file:deploy.json
+
+sgx.enclave_size = 8G
+sgx.static_address = 1
+sgx.thread_num = 11

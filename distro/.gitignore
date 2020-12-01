@@ -1,0 +1,7 @@
+*.tar.gz
+graphene
+nsjail
+yagna/libgcc_s.so.1
+yagna/liblzma.so.5
+yagna/ya-runtime-sgx-wasi
+yagna/sgx-exe-unit

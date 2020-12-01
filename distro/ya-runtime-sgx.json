@@ -1,0 +1,10 @@
+[
+  {
+    "name": "sgx",
+    "version": "0.1.0",
+    "supervisor-path": "sgx-exe-unit",
+    "runtime-path": "ya-runtime-sgx-wasi",
+    "description": "sgx wasi runtime",
+    "extra-args": []
+  }
+]

@@ -1,0 +1,8 @@
+[
+    {
+        "name": "exe-unit-sgx",
+        "supervisor-path": "exe-unit-wrapper.sh",
+        "runtime-path": "ya-runtime-sgx",
+        "description" : "HOHOHOHOHO"
+    }
+]
